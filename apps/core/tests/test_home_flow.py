@@ -154,4 +154,5 @@ class HomeFlowTests(TestCase):
         self.assertEqual(dialog.scenario_id, self.scenario.id)
         self.assertEqual(dialog.scenario_prompt_used_id, self.prompt.id)
         self.assertEqual(dialog.assistant_message_count, 1)
+        self.assertEqual(dialog.effective_duration_seconds, self.user.preferred_dialog_duration_minutes * 60)
         self.assertEqual(DialogMessage.objects.filter(dialog=dialog, role="assistant").count(), 1)

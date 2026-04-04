@@ -3,8 +3,9 @@
 from django.contrib import admin
 from django.urls import include, path
 
+from apps.accounts.views import cabinet_view
 from apps.content.views_encyclopedia import EncyclopediaDetailView, EncyclopediaListView
-from apps.core.views import CabinetEntryView, HomeView, ScenarioStartView
+from apps.core.views import HomeView, ScenarioStartView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -14,5 +15,5 @@ urlpatterns = [
     path("start/<slug:game_slug>/<slug:scenario_slug>/", ScenarioStartView.as_view(), name="scenario_start"),
     path("encyclopedia/", EncyclopediaListView.as_view(), name="encyclopedia_entry"),
     path("encyclopedia/<slug:slug>/", EncyclopediaDetailView.as_view(), name="encyclopedia_detail"),
-    path("cabinet/", CabinetEntryView.as_view(), name="cabinet_entry"),
+    path("cabinet/", cabinet_view, name="cabinet_entry"),
 ]

@@ -11,8 +11,9 @@ from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views import View
 
-from apps.accounts.forms import EmailAuthenticationForm, NicknameUpdateForm, RegistrationForm, SafePasswordResetForm
+from apps.accounts.forms import EmailAuthenticationForm, NicknameUpdateForm, PersonalTimerForm, RegistrationForm, SafePasswordResetForm
 from apps.accounts.services.auth import is_login_throttled, register_failed_login_attempt, reset_login_attempts
+from apps.accounts.services.cabinet import build_cabinet_dashboard
 
 
 class RegisterView(View):
@@ -255,3 +256,64 @@ class SafePasswordResetCompleteView(PasswordResetCompleteView):
     """Экран успешного завершения восстановления пароля."""
 
     template_name = "auth/password_reset_complete.html"
+
+
+@login_required
+def cabinet_view(request: HttpRequest) -> HttpResponse:
+    """Отображает личный кабинет пользователя с профилем, метриками, историей и настройками.
+
+    Контекст использования:
+    - основной экран `/cabinet/` для авторизованного пользователя;
+    - объединяет профиль, персональный таймер, индикаторы и историю игр.
+
+    Параметры:
+    - `request`: HTTP-запрос пользователя;
+    - `POST` поддерживает действия `update_nickname` и `update_timer`.
+
+    Возвращает:
+    - HTML-страницу `pages/cabinet_entry.html`.
+
+    Исключения и особые случаи:
+    - обрабатывает только текущего пользователя и не предоставляет доступ к чужим данным.
+
+    Побочные эффекты:
+    - может обновить nickname и/или персональный таймер в профиле пользователя.
+    """
+
+    action = request.POST.get("action") if request.method == "POST" else ""
+
+    if request.method == "POST" and action == "update_nickname":
+        nickname_form = NicknameUpdateForm(request.POST, instance=request.user)
+        timer_form = PersonalTimerForm(instance=request.user)
+        if nickname_form.is_valid():
+            nickname_form.save()
+            messages.success(request, "Никнейм обновлён.")
+            return redirect("cabinet_entry")
+    elif request.method == "POST" and action == "update_timer":
+        timer_form = PersonalTimerForm(request.POST, instance=request.user)
+        nickname_form = NicknameUpdateForm(instance=request.user)
+        if timer_form.is_valid():
+            timer_form.save()
+            messages.success(request, "Персональный таймер сохранён.")
+            return redirect("cabinet_entry")
+    else:
+        nickname_form = NicknameUpdateForm(instance=request.user)
+        timer_form = PersonalTimerForm(instance=request.user)
+
+    dashboard = build_cabinet_dashboard(request.user)
+
+    from django.core.paginator import Paginator
+
+    history_paginator = Paginator(dashboard["history_scores"], 10)
+    history_page = history_paginator.get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "pages/cabinet_entry.html",
+        {
+            "nickname_form": nickname_form,
+            "timer_form": timer_form,
+            "history_page": history_page,
+            **dashboard,
+        },
+    )

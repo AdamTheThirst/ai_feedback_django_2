@@ -3,15 +3,128 @@
 {% block title %}Личный кабинет{% endblock %}
 
 {% block content %}
-<section class="card border-0 shadow-sm">
-    <div class="card-body">
-        <h1 class="h4 mb-3">Личный кабинет</h1>
-        <p class="mb-1"><strong>Никнейм:</strong> {{ request.user.nickname }}</p>
-        <p class="mb-3"><strong>Email:</strong> {{ request.user.email }}</p>
-        <div class="d-grid gap-2 d-sm-flex">
-            <a class="btn btn-primary" href="{% url 'accounts:profile' %}">Редактировать профиль</a>
-            <a class="btn btn-outline-secondary" href="{% url 'home' %}">Вернуться на главную</a>
+<div class="container py-3">
+    <h1 class="h4 mb-3">Личный кабинет</h1>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">Профиль</h2>
+            <p class="mb-1"><strong>Email:</strong> {{ request.user.email }}</p>
+            <p class="small text-muted">Email доступен только для просмотра.</p>
+            <form method="post" class="mb-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_nickname">
+                {{ nickname_form.as_p }}
+                <button class="btn btn-primary btn-sm" type="submit">Сохранить nickname</button>
+            </form>
+            <a href="{% url 'accounts:password_reset' %}">Сменить пароль через email</a>
         </div>
-    </div>
-</section>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">Мои настройки игры</h2>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_timer">
+                {{ timer_form.as_p }}
+                <div class="small text-muted mb-2">Диапазон: 5–20 минут. Настройка применяется к новым сессиям.</div>
+                <button class="btn btn-primary btn-sm" type="submit">Сохранить таймер</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">Мои показатели</h2>
+            <div class="row g-2">
+                <div class="col-6"><div class="border rounded p-2">Всего сессий: <strong>{{ total_sessions }}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">Завершённых с анализом: <strong>{{ completed_sessions }}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">Прерванные попытки: <strong>{{ interrupted_attempts }}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">Средний балл: <strong>{% if average_score != None %}{{ average_score }}{% else %}—{% endif %}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">Лучший результат: <strong>{% if best_score != None %}{{ best_score }}{% else %}—{% endif %}</strong></div></div>
+            </div>
+            {% if average_by_game %}
+                <hr>
+                <h3 class="h6">Средний балл по играм</h3>
+                <ul class="mb-0">
+                    {% for item in average_by_game %}
+                        <li>{{ item.game_title }} — {{ item.avg_score }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">Сильные стороны</h2>
+            <ul class="mb-0">
+                {% for item in strong_indicators %}
+                    <li>{{ item.title }} — ср. {{ item.avg_rating }} ({{ item.count }} анализов)</li>
+                {% empty %}
+                    <li class="text-muted">Пока недостаточно данных.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">Зоны роста</h2>
+            <ul class="mb-0">
+                {% for item in weak_indicators %}
+                    <li>{{ item.title }} — ср. {{ item.avg_rating }}, ниже 3: {{ item.low_count }}</li>
+                {% empty %}
+                    <li class="text-muted">Западающих индикаторов не найдено.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">История игр</h2>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr><th>Дата</th><th>Игра</th><th>Сценарий</th><th>Баллы</th><th>Статус</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in history_page.object_list %}
+                            <tr>
+                                <td>{{ item.session.ended_at|date:"d.m.Y H:i" }}</td>
+                                <td>{{ item.session.game.title }}</td>
+                                <td>{{ item.session.scenario.title }}</td>
+                                <td>{{ item.score_n }} из {{ item.score_m }}</td>
+                                <td>{{ item.session.get_status_display }}</td>
+                                <td>
+                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'dialogs:results' public_id=item.session.public_id %}">Результат</a>
+                                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'dialogs:export_pdf' public_id=item.session.public_id %}">PDF</a>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="6" class="text-muted">Пока нет завершённых сессий с анализом.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if history_page.paginator.num_pages > 1 %}
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if history_page.has_previous %}
+                            <li class="page-item"><a class="page-link" href="?page={{ history_page.previous_page_number }}">Назад</a></li>
+                        {% endif %}
+                        <li class="page-item disabled"><span class="page-link">Стр. {{ history_page.number }} / {{ history_page.paginator.num_pages }}</span></li>
+                        {% if history_page.has_next %}
+                            <li class="page-item"><a class="page-link" href="?page={{ history_page.next_page_number }}">Вперёд</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    </section>
+
+    <a class="btn btn-outline-secondary w-100" href="{% url 'home' %}">Вернуться к упражнениям</a>
+</div>
 {% endblock %}

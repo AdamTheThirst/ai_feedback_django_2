@@ -235,3 +235,53 @@ class SafePasswordResetForm(PasswordResetForm):
         """
 
         return User._default_manager.filter(email__iexact=email, is_active=True)
+
+
+class PersonalTimerForm(forms.ModelForm):
+    """Форма настройки персональной длительности игровых сессий пользователя.
+
+    Контекст использования:
+    - используется в личном кабинете для изменения таймера будущих сессий.
+
+    Параметры:
+    - работает с полем `preferred_dialog_duration_minutes` модели `User`.
+
+    Возвращает:
+    - валидированное значение таймера в диапазоне 5..20 минут.
+
+    Исключения и особые случаи:
+    - не допускает значения вне диапазона и нечисловые данные.
+
+    Побочные эффекты:
+    - при `save` обновляет поле настройки пользователя.
+    """
+
+    class Meta:
+        """Определяет связь формы с моделью пользователя."""
+
+        model = User
+        fields = ["preferred_dialog_duration_minutes"]
+
+    def clean_preferred_dialog_duration_minutes(self) -> int:
+        """Проверяет диапазон значения таймера 5..20 минут.
+
+        Контекст использования:
+        - серверная валидация перед сохранением персональной настройки.
+
+        Параметры:
+        - отсутствуют, значение берётся из очищенных данных формы.
+
+        Возвращает:
+        - целое число минут в диапазоне 5..20.
+
+        Исключения и особые случаи:
+        - `ValidationError`, если значение выходит за допустимые границы.
+
+        Побочные эффекты:
+        - отсутствуют.
+        """
+
+        minutes = int(self.cleaned_data["preferred_dialog_duration_minutes"])
+        if minutes < 5 or minutes > 20:
+            raise forms.ValidationError("Таймер должен быть в диапазоне от 5 до 20 минут.")
+        return minutes

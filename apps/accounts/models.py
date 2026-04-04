@@ -246,6 +246,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimestampedModel):
     is_active = models.BooleanField(default=True, verbose_name="Активен")
     is_staff = models.BooleanField(default=False, verbose_name="Доступ в админку")
     date_joined = models.DateTimeField(default=timezone.now, verbose_name="Дата регистрации")
+    preferred_dialog_duration_minutes = models.PositiveSmallIntegerField(default=10, verbose_name="Персональный таймер, мин")
     created_by = models.ForeignKey(
         "self",
         null=True,
@@ -302,6 +303,8 @@ class User(AbstractBaseUser, PermissionsMixin, TimestampedModel):
             raise ValidationError("Главный супер-администратор обязан иметь роль superadmin.")
         if self.role in {UserRole.ADMIN, UserRole.SUPERADMIN} and not self.is_staff:
             raise ValidationError("Административные роли обязаны иметь is_staff=True.")
+        if not 5 <= int(self.preferred_dialog_duration_minutes or 0) <= 20:
+            raise ValidationError("Персональный таймер должен быть в диапазоне от 5 до 20 минут.")
 
     def save(self, *args: object, **kwargs: object) -> None:
         """Сохраняет пользователя и обновляет вычисляемые поля аватара.
