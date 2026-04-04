@@ -104,3 +104,54 @@ class AnalysisRunStatus(models.TextChoices):
     COMPLETED = "completed", "Завершён успешно"
     FAILED = "failed", "Завершён с ошибкой"
     SKIPPED = "skipped", "Пропущен"
+
+
+class AnalysisValidationStatus(models.TextChoices):
+    """Описывает результат валидации JSON-ответа аналитической модели.
+
+    Контекст использования:
+    - применяется в `AnalysisResult.validation_status` для прозрачной диагностики качества ответа LLM.
+
+    Параметры:
+    - используются фиксированные значения перечисления.
+
+    Возвращает:
+    - строковый код результата валидации.
+
+    Исключения и особые случаи:
+    - отсутствуют.
+
+    Побочные эффекты:
+    - отсутствуют.
+    """
+
+    VALID = "valid", "Валидный"
+    INVALID_JSON = "invalid_json", "Невалидный JSON"
+    INVALID_SCHEMA = "invalid_schema", "Невалидная схема"
+    FALLBACK_SAVED = "fallback_saved", "Сохранён fallback"
+
+
+class AuditLogLevel(models.TextChoices):
+    """Описывает уровни критичности технических событий в audit log.
+
+    Контекст использования:
+    - используется в `AuditLogEntry.level` для фильтрации и мониторинга ошибок/событий.
+
+    Параметры:
+    - применяются фиксированные значения перечисления.
+
+    Возвращает:
+    - строковый код уровня события.
+
+    Исключения и особые случаи:
+    - отсутствуют.
+
+    Побочные эффекты:
+    - отсутствуют.
+    """
+
+    DEBUG = "debug", "Debug"
+    INFO = "info", "Info"
+    WARNING = "warning", "Warning"
+    ERROR = "error", "Error"
+    CRITICAL = "critical", "Critical"

@@ -106,7 +106,8 @@ def finish_dialog(dialog: DialogSession, reason: str, now=None) -> DialogSession
 
     Побочные эффекты:
     - обновляет `status`, `ended_reason`, `ended_at`, `pending_response`, `last_client_activity_at`;
-    - записывает изменения в БД.
+    - записывает изменения в БД;
+    - запускает анализ через `AnalysisService`, если в диалоге есть пользовательские реплики.
     """
 
     supported_reasons = {
@@ -147,6 +148,12 @@ def finish_dialog(dialog: DialogSession, reason: str, now=None) -> DialogSession
             "updated_at",
         ]
     )
+
+    if dialog.user_message_count > 0:
+        from apps.analysis.services.engine import run_analysis_for_dialog
+
+        run_analysis_for_dialog(dialog)
+
     return dialog
 
 

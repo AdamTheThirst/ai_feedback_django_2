@@ -1,5 +1,8 @@
-"""Временный адаптер генерации игровых реплик для чата V1."""
+"""Временные адаптеры генерации игровых и аналитических реплик для V1."""
 
+import json
+
+from apps.content.models import AnalysisPrompt
 from apps.dialogs.models import DialogSession
 
 
@@ -32,3 +35,39 @@ def generate_game_reply(dialog: DialogSession, user_text: str) -> str:
         f"Я услышал вас: «{trimmed}». "
         "Уточните, пожалуйста, какой конкретный результат вы ожидаете после этой обратной связи?"
     )
+
+
+def generate_analysis_reply(dialog: DialogSession, analysis_prompt: AnalysisPrompt, transcript: str) -> str:
+    """Возвращает временный JSON-ответ для аналитического критерия.
+
+    Контекст использования:
+    - вызывается сервисом `AnalysisService` для каждого активного `AnalysisPrompt`;
+    - в текущей итерации заменяет реальный вызов внешней LLM.
+
+    Параметры:
+    - `dialog`: анализируемая сессия;
+    - `analysis_prompt`: критерий оценки;
+    - `transcript`: полный транскрипт диалога.
+
+    Возвращает:
+    - строку JSON c полями `rating` и `text`.
+
+    Исключения и особые случаи:
+    - если транскрипт пустой, возвращается минимальная оценка.
+
+    Побочные эффекты:
+    - отсутствуют.
+    """
+
+    transcript_length = len((transcript or "").strip())
+    if transcript_length == 0:
+        rating_value = analysis_prompt.min_rating
+        text_value = "Диалог не содержит реплик для полноценного анализа."
+    else:
+        rating_value = min(analysis_prompt.max_rating, max(analysis_prompt.min_rating, analysis_prompt.min_rating + 1))
+        text_value = (
+            f"Критерий «{analysis_prompt.title}»: пользователь поддерживал диалог и демонстрировал рабочую коммуникацию. "
+            "Рекомендуется уточнять ожидания и завершать сообщение конкретным действием."
+        )
+
+    return json.dumps({"rating": rating_value, "text": text_value}, ensure_ascii=False)
