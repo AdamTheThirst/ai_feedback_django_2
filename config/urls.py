@@ -1,11 +1,16 @@
-"""Корневой роутер проекта с базовыми маршрутами первой итерации."""
+"""Корневой роутер проекта с пользовательскими и системными маршрутами."""
 
 from django.contrib import admin
 from django.urls import include, path
-from apps.core.views import HomeView
+
+from apps.core.views import CabinetEntryView, EncyclopediaEntryView, HomeView, ScenarioStartView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("accounts/", include("apps.accounts.urls", namespace="accounts")),
+    path("dialogs/", include("apps.dialogs.urls", namespace="dialogs")),
     path("", HomeView.as_view(), name="home"),
+    path("start/<slug:game_slug>/<slug:scenario_slug>/", ScenarioStartView.as_view(), name="scenario_start"),
+    path("encyclopedia/", EncyclopediaEntryView.as_view(), name="encyclopedia_entry"),
+    path("cabinet/", CabinetEntryView.as_view(), name="cabinet_entry"),
 ]

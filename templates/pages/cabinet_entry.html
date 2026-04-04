@@ -1,0 +1,17 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Личный кабинет{% endblock %}
+
+{% block content %}
+<section class="card border-0 shadow-sm">
+    <div class="card-body">
+        <h1 class="h4 mb-3">Личный кабинет</h1>
+        <p class="mb-1"><strong>Никнейм:</strong> {{ request.user.nickname }}</p>
+        <p class="mb-3"><strong>Email:</strong> {{ request.user.email }}</p>
+        <div class="d-grid gap-2 d-sm-flex">
+            <a class="btn btn-primary" href="{% url 'accounts:profile' %}">Редактировать профиль</a>
+            <a class="btn btn-outline-secondary" href="{% url 'home' %}">Вернуться на главную</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

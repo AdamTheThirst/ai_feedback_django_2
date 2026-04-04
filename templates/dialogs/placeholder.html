@@ -1,0 +1,14 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Диалог{% endblock %}
+
+{% block content %}
+<section class="card border-0 shadow-sm">
+    <div class="card-body">
+        <h1 class="h4 mb-3">Диалог запущен</h1>
+        <p class="mb-2">ID сессии: <code>{{ object.public_id }}</code></p>
+        <p class="mb-3">Чатовый экран будет реализован в следующей итерации.</p>
+        <a class="btn btn-outline-secondary" href="{% url 'home' %}">На главную</a>
+    </div>
+</section>
+{% endblock %}
