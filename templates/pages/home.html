@@ -5,8 +5,9 @@
 {% block content %}
 <section class="card shadow-sm border-0">
     <div class="card-body">
-        <h1 class="h4 mb-3">Каркас проекта готов</h1>
-        <p class="mb-0">Это базовая техническая страница первой итерации bootstrap.</p>
+        <h1 class="h4 mb-3">Вы вошли в систему</h1>
+        <p class="mb-2">Техническая главная страница V1. Следующим шагом будет вывод игр и сценариев.</p>
+        <p class="mb-0"><strong>Пользователь:</strong> {{ request.user.nickname }} ({{ request.user.email }})</p>
     </div>
 </section>
 {% endblock %}

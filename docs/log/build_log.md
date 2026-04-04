@@ -55,3 +55,35 @@
 - Полный состав полей `DialogSession`/`AnalysisRun` из спецификации (часть полей будет добавлена в следующих итерациях вместе с моделями контента и настроек).
 - Модели `DialogMessage` и `AnalysisResult`.
 - Доменные модели контента, платформенных настроек и ролей.
+
+## Шаг 2 — Accounts, роли и auth flow
+
+Дата: 2026-04-04
+
+### Что сделано
+- Реализована кастомная модель `accounts.User` с логином по email, ролями (`user/admin/superadmin`), признаком главного супер-админа и служебными полями профиля.
+- Добавлен менеджер `UserManager` и функции генерации никнейма/цвета аватара.
+- Реализованы формы:
+  - регистрация,
+  - вход по email,
+  - обновление никнейма,
+  - безопасный reset password.
+- Реализованы views и маршруты auth-flow:
+  - `register`, `login`, `logout`, `profile`,
+  - `password_reset` + `done/confirm/complete`.
+- Добавлен базовый throttling попыток логина через cache-сервис.
+- Добавлен сервис ролевых permission-проверок (`is_admin`, `is_superadmin`, `is_primary_superadmin`, `can_create_admin`, `can_assign_superadmin`).
+- Обновлены настройки проекта для кастомного пользователя (`AUTH_USER_MODEL`) и auth-redirects.
+- Добавлена первая миграция `apps/accounts/migrations/0001_initial.py`.
+- Добавлены smoke-тесты permission-сервиса ролей.
+
+### Как это связано между собой
+- `accounts.User` является источником истины для аутентификации и ролевого доступа.
+- `LoginView` использует `EmailAuthenticationForm` и throttling-сервис из `accounts/services/auth.py`.
+- Правила ролей из `accounts/services/permissions.py` готовы для интеграции в админские/контентные сервисы.
+- `profile_view` даёт минимальный путь изменения никнейма без полноценного ЛК.
+
+### Что не сделано в этом шаге
+- Полноценный backoffice для управления ролями.
+- Логирование событий превышения login-rate-limit в отдельную таблицу audit log.
+- Seed-учётки и команды инициализации.
