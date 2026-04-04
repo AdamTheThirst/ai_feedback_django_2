@@ -2,6 +2,7 @@
 
 import uuid
 
+from django.conf import settings
 from django.db import models
 
 
@@ -87,5 +88,40 @@ class PublicIdModel(models.Model):
 
     class Meta:
         """Мета-настройки абстрактной модели публичного идентификатора."""
+
+        abstract = True
+
+
+class OwnedModel(models.Model):
+    """Добавляет поле владельца-создателя для контентных сущностей.
+
+    Контекст использования:
+    - применяется к мастер-данным, где действует правило владения объектами;
+    - поддерживает разграничение прав «админ видит свои объекты».
+
+    Параметры:
+    - поле `created_by` заполняется сервисным слоем при создании сущности.
+
+    Возвращает:
+    - экземпляры наследников со ссылкой на автора либо `NULL`.
+
+    Исключения и особые случаи:
+    - при удалении пользователя используется `SET_NULL`, чтобы не разрушать историю.
+
+    Побочные эффекты:
+    - отсутствуют.
+    """
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="%(app_label)s_%(class)s_created",
+        verbose_name="Создатель",
+    )
+
+    class Meta:
+        """Мета-настройки абстрактной модели владельца."""
 
         abstract = True
