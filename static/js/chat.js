@@ -211,6 +211,9 @@ async function finishDialog(reason) {
             return false;
         }
         lockChatUi(payload.dialog_status || "finished");
+        if (window.chatConfig.resultsUrl) {
+            window.location.href = window.chatConfig.resultsUrl;
+        }
         return true;
     } catch (error) {
         alert("Ошибка сети при завершении диалога.");

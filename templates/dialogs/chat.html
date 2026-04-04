@@ -45,6 +45,7 @@
         sendUrl: "{% url 'dialogs:send_message' public_id=object.public_id %}",
         finishUrl: "{% url 'dialogs:finish' public_id=object.public_id %}",
         pageLeaveUrl: "{% url 'dialogs:page_leave' public_id=object.public_id %}",
+        resultsUrl: "{% url 'dialogs:results' public_id=object.public_id %}",
         csrfToken: "{{ csrf_token }}",
         secondsRemaining: {{ seconds_remaining }},
         dialogStatus: "{{ dialog_status }}"
