@@ -7,6 +7,7 @@ from django.db import transaction
 
 from apps.core.enums import DialogMessageRole, DialogStatus
 from apps.dialogs.models import DialogMessage, DialogSession
+from apps.dialogs.services.lifecycle import maybe_finish_dialog_by_timeout
 from apps.integrations.services.llm_chat import generate_game_reply
 
 
@@ -75,6 +76,7 @@ def send_user_message(dialog: DialogSession, text: str, client_message_id: str |
     - изменяет счётчики и технические поля `DialogSession`.
     """
 
+    dialog = maybe_finish_dialog_by_timeout(dialog)
     if dialog.status != DialogStatus.ACTIVE:
         raise DialogSendMessageError("Диалог уже завершён.")
 

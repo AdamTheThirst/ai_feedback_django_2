@@ -73,6 +73,7 @@ class DialogSession(PublicIdModel, TimestampedModel):
     conditions_snapshot_text = models.TextField(verbose_name="Снимок условий", blank=True)
     opening_message_snapshot_text = models.TextField(verbose_name="Снимок стартового сообщения", blank=True)
     pending_response = models.BooleanField(default=False, verbose_name="Ожидание ответа ассистента")
+    effective_duration_seconds = models.PositiveIntegerField(default=600, verbose_name="Эффективная длительность, сек")
     last_client_activity_at = models.DateTimeField(null=True, blank=True, verbose_name="Последняя клиентская активность")
     client_aborted_at = models.DateTimeField(null=True, blank=True, verbose_name="Время клиентского прерывания")
 

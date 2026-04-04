@@ -113,3 +113,7 @@ CACHES = {
         "LOCATION": "ai-feedback-cache",
     }
 }
+
+# Настройки таймера и завершения диалога V1.
+DIALOG_DEFAULT_DURATION_SECONDS = 10 * 60
+DIALOG_CLIENT_ABORT_GRACE_SECONDS = 20

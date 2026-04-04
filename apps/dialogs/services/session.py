@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 
 from apps.core.enums import DialogStatus
 from apps.dialogs.models import DialogSession
+from apps.dialogs.services.lifecycle import finalize_stale_page_leave_dialogs
 
 
 def has_active_dialog(user: get_user_model()) -> bool:
@@ -23,9 +24,10 @@ def has_active_dialog(user: get_user_model()) -> bool:
     - для неавторизованного пользователя функция возвращает `False`.
 
     Побочные эффекты:
-    - отсутствуют.
+    - перед проверкой запускает серверный fallback добивания «зависших» сессий после ухода со страницы.
     """
 
     if not user or not user.is_authenticated:
         return False
+    finalize_stale_page_leave_dialogs()
     return DialogSession.objects.filter(user=user, status=DialogStatus.ACTIVE).exists()

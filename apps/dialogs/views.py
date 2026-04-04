@@ -1,14 +1,22 @@
-"""Представления модуля dialogs для lifecycle и чата V1."""
+"""Представления модуля dialogs для lifecycle, таймера и чата V1."""
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView
 
-from apps.core.enums import DialogMessageRole, DialogStatus
+from apps.core.enums import DialogEndedReason, DialogMessageRole, DialogStatus
 from apps.dialogs.models import DialogSession
 from apps.dialogs.services.chat import DialogSendMessageError, send_user_message
+from apps.dialogs.services.lifecycle import (
+    DialogFinishError,
+    finish_dialog,
+    get_dialog_seconds_remaining,
+    maybe_finish_dialog_by_timeout,
+)
 
 
 class DialogChatView(LoginRequiredMixin, DetailView):
@@ -16,7 +24,7 @@ class DialogChatView(LoginRequiredMixin, DetailView):
 
     Контекст использования:
     - открывается после успешного старта сценария на главной странице;
-    - показывает условия, стартовое сообщение и историю сообщений.
+    - показывает условия, стартовое сообщение, историю и серверно-синхронизированный таймер.
 
     Параметры:
     - принимает `public_id` диалога из URL.
@@ -28,7 +36,7 @@ class DialogChatView(LoginRequiredMixin, DetailView):
     - пользователь может открыть только свой диалог.
 
     Побочные эффекты:
-    - отсутствуют.
+    - при истечении таймера может завершить диалог серверно до рендера страницы.
     """
 
     template_name = "dialogs/chat.html"
@@ -61,7 +69,7 @@ class DialogChatView(LoginRequiredMixin, DetailView):
         )
 
     def get_context_data(self, **kwargs):
-        """Формирует контекст экрана чата с сообщениями и UI-флагами.
+        """Формирует контекст экрана чата с сообщениями, таймером и UI-флагами.
 
         Контекст использования:
         - вызывается шаблоном `dialogs/chat.html`.
@@ -76,15 +84,19 @@ class DialogChatView(LoginRequiredMixin, DetailView):
         - отсутствуют.
 
         Побочные эффекты:
-        - отсутствуют.
+        - может обновить статус диалога через автозавершение по таймеру.
         """
 
         context = super().get_context_data(**kwargs)
-        dialog: DialogSession = self.object
+        dialog: DialogSession = maybe_finish_dialog_by_timeout(self.object)
+        context["object"] = dialog
         context["messages"] = dialog.messages.order_by("sequence_no", "id")
         context["can_send"] = dialog.status == DialogStatus.ACTIVE and not dialog.pending_response
+        context["can_finish"] = dialog.status == DialogStatus.ACTIVE
+        context["seconds_remaining"] = get_dialog_seconds_remaining(dialog)
         context["message_role_user"] = DialogMessageRole.USER
         context["message_role_assistant"] = DialogMessageRole.ASSISTANT
+        context["dialog_status"] = dialog.status
         return context
 
 
@@ -128,6 +140,7 @@ class DialogSendMessageApiView(LoginRequiredMixin, View):
         """
 
         dialog = get_object_or_404(DialogSession, public_id=public_id, user=request.user)
+        maybe_finish_dialog_by_timeout(dialog)
         text = request.POST.get("text", "")
         client_message_id = request.POST.get("client_message_id")
 
@@ -136,6 +149,138 @@ class DialogSendMessageApiView(LoginRequiredMixin, View):
             return JsonResponse({"ok": True, **payload})
         except DialogSendMessageError as exc:
             return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+
+
+class DialogFinishApiView(LoginRequiredMixin, View):
+    """Завершает диалог вручную или по таймеру через JSON-endpoint.
+
+    Контекст использования:
+    - вызывается кнопкой «Дай обратную связь» и клиентским обработчиком истечения времени.
+
+    Параметры:
+    - принимает `public_id` и POST-поле `reason`.
+
+    Возвращает:
+    - JSON со статусом и метаданными завершения.
+
+    Исключения и особые случаи:
+    - повторный вызов идемпотентен и возвращает уже сохранённое финальное состояние.
+
+    Побочные эффекты:
+    - переводит `DialogSession` в финальный статус.
+    """
+
+    def post(self, request: HttpRequest, public_id) -> JsonResponse:
+        """Выполняет завершение диалога по явной причине клиента.
+
+        Контекст использования:
+        - endpoint для ручного завершения и завершения по таймеру.
+
+        Параметры:
+        - `request`: POST-запрос;
+        - `public_id`: UUID диалога текущего пользователя.
+
+        Возвращает:
+        - JSON c полями `dialog_status`, `ended_reason`, `ended_at`.
+
+        Исключения и особые случаи:
+        - при невалидной причине возвращает HTTP 400.
+
+        Побочные эффекты:
+        - обновляет запись сессии в БД.
+        """
+
+        dialog = get_object_or_404(DialogSession, public_id=public_id, user=request.user)
+        reason = request.POST.get("reason", DialogEndedReason.MANUAL_FEEDBACK)
+
+        try:
+            finished_dialog = finish_dialog(dialog=dialog, reason=reason)
+        except DialogFinishError as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "dialog_status": finished_dialog.status,
+                "ended_reason": finished_dialog.ended_reason,
+                "ended_at": finished_dialog.ended_at.isoformat() if finished_dialog.ended_at else None,
+            }
+        )
+
+
+class DialogPageLeaveApiView(LoginRequiredMixin, View):
+    """Обрабатывает сигнал ухода пользователя со страницы диалога.
+
+    Контекст использования:
+    - вызывается браузером через `sendBeacon` при `pagehide`/`beforeunload`;
+    - защищает от потери завершения сессии при закрытии вкладки.
+
+    Параметры:
+    - принимает `public_id` диалога и авторизованную cookie-сессию пользователя.
+
+    Возвращает:
+    - JSON с подтверждением фиксации причины `page_leave`.
+
+    Исключения и особые случаи:
+    - повторный вызов безопасен и не дублирует финальные изменения.
+
+    Побочные эффекты:
+    - завершает активный диалог как прерванный.
+    """
+
+    @csrf_exempt
+    def dispatch(self, *args, **kwargs):
+        """Отключает CSRF-проверку только для сценария фонового `sendBeacon`.
+
+        Контекст использования:
+        - `sendBeacon` не всегда может стабильно передать CSRF-заголовок.
+
+        Параметры:
+        - стандартные аргументы CBV `dispatch`.
+
+        Возвращает:
+        - результат обработки базового `dispatch`.
+
+        Исключения и особые случаи:
+        - доступ остаётся ограничен авторизацией пользователя.
+
+        Побочные эффекты:
+        - отсутствуют.
+        """
+
+        return super().dispatch(*args, **kwargs)
+
+    def post(self, request: HttpRequest, public_id) -> JsonResponse:
+        """Фиксирует уход пользователя со страницы как завершение `page_leave`.
+
+        Контекст использования:
+        - endpoint для механизма безопасного завершения при закрытии страницы.
+
+        Параметры:
+        - `request`: POST-запрос;
+        - `public_id`: UUID диалоговой сессии.
+
+        Возвращает:
+        - JSON с текущим финальным состоянием диалога.
+
+        Исключения и особые случаи:
+        - отсутствуют; для уже завершённой сессии возвращается текущий статус.
+
+        Побочные эффекты:
+        - обновляет `client_aborted_at` и финальный статус диалога.
+        """
+
+        dialog = get_object_or_404(DialogSession, public_id=public_id, user=request.user)
+        dialog.client_aborted_at = timezone.now()
+        dialog.save(update_fields=["client_aborted_at", "updated_at"])
+        finished_dialog = finish_dialog(dialog=dialog, reason=DialogEndedReason.PAGE_LEAVE)
+        return JsonResponse(
+            {
+                "ok": True,
+                "dialog_status": finished_dialog.status,
+                "ended_reason": finished_dialog.ended_reason,
+            }
+        )
 
 
 class DialogPlaceholderRedirectView(LoginRequiredMixin, View):

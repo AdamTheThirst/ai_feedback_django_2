@@ -11,7 +11,7 @@
                 <div class="small text-muted">{{ object.game.title }} | {{ object.scenario.title }}</div>
                 <div class="chat-timer" id="chat-timer">10:00</div>
             </div>
-            <button class="btn btn-warning w-100 mb-2" type="button" disabled>Дай обратную связь</button>
+            <button class="btn btn-warning w-100 mb-2" id="dialog-finish-button" type="button" {% if not can_finish %}disabled{% endif %}>Дай обратную связь</button>
             <div class="conditions-panel">{{ object.conditions_snapshot_text }}</div>
         </header>
 
@@ -43,7 +43,11 @@
 <script>
     window.chatConfig = {
         sendUrl: "{% url 'dialogs:send_message' public_id=object.public_id %}",
-        csrfToken: "{{ csrf_token }}"
+        finishUrl: "{% url 'dialogs:finish' public_id=object.public_id %}",
+        pageLeaveUrl: "{% url 'dialogs:page_leave' public_id=object.public_id %}",
+        csrfToken: "{{ csrf_token }}",
+        secondsRemaining: {{ seconds_remaining }},
+        dialogStatus: "{{ dialog_status }}"
     };
 </script>
 <script src="{% static 'js/chat.js' %}"></script>

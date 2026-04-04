@@ -1,5 +1,6 @@
 """Пользовательские представления главной страницы и входных точек разделов."""
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
@@ -142,6 +143,7 @@ class ScenarioStartView(LoginRequiredMixin, View):
             scenario_prompt_used=prompt,
             conditions_snapshot_text=scenario.conditions_text,
             opening_message_snapshot_text=scenario.opening_message_text,
+            effective_duration_seconds=int(getattr(settings, "DIALOG_DEFAULT_DURATION_SECONDS", 600)),
         )
 
         DialogMessage.objects.create(

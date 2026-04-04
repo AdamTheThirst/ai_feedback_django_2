@@ -87,6 +87,262 @@ function scrollToBottom() {
 }
 
 /**
+ * Возвращает csrf-токен для POST-запросов.
+ *
+ * Контекст использования:
+ * - используется для обычных AJAX-вызовов, где действует стандартная CSRF-проверка.
+ *
+ * Параметры:
+ * - отсутствуют.
+ *
+ * Возвращает:
+ * - строку CSRF-токена.
+ *
+ * Исключения и особые случаи:
+ * - если токен отсутствует, возвращается пустая строка.
+ *
+ * Побочные эффекты:
+ * - отсутствуют.
+ */
+function getCsrfToken() {
+    return (window.chatConfig && window.chatConfig.csrfToken) || "";
+}
+
+/**
+ * Переводит интерфейс в состояние «диалог завершён».
+ *
+ * Контекст использования:
+ * - вызывается после ручного завершения, таймаута или сигнала ухода со страницы.
+ *
+ * Параметры:
+ * - `status`: финальный серверный статус диалога.
+ *
+ * Возвращает:
+ * - отсутствует.
+ *
+ * Исключения и особые случаи:
+ * - отсутствуют.
+ *
+ * Побочные эффекты:
+ * - блокирует поле ввода и кнопки отправки/завершения.
+ */
+function lockChatUi(status) {
+    const input = document.getElementById("chat-input");
+    const sendButton = document.getElementById("chat-send-button");
+    const finishButton = document.getElementById("dialog-finish-button");
+
+    if (input) {
+        input.disabled = true;
+    }
+    if (sendButton) {
+        sendButton.disabled = true;
+    }
+    if (finishButton) {
+        finishButton.disabled = true;
+    }
+    if (window.chatConfig) {
+        window.chatConfig.dialogStatus = status;
+    }
+}
+
+/**
+ * Форматирует секунды в вид `MM:SS`.
+ *
+ * Контекст использования:
+ * - применяется для визуализации обратного отсчёта на экране чата.
+ *
+ * Параметры:
+ * - `seconds`: количество секунд.
+ *
+ * Возвращает:
+ * - строку в формате `MM:SS`.
+ *
+ * Исключения и особые случаи:
+ * - отрицательные значения интерпретируются как `00:00`.
+ *
+ * Побочные эффекты:
+ * - отсутствуют.
+ */
+function formatTimerValue(seconds) {
+    const safeSeconds = Math.max(parseInt(seconds || 0, 10), 0);
+    const minutes = Math.floor(safeSeconds / 60);
+    const rest = safeSeconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
+/**
+ * Завершает диалог через JSON-endpoint с указанной причиной.
+ *
+ * Контекст использования:
+ * - общий вызов для кнопки ручного завершения и автозавершения по таймеру.
+ *
+ * Параметры:
+ * - `reason`: код причины (`manual_feedback` или `timeout`).
+ *
+ * Возвращает:
+ * - Promise с `true`, если сервер подтвердил завершение.
+ *
+ * Исключения и особые случаи:
+ * - при ошибке возвращает `false` и показывает alert.
+ *
+ * Побочные эффекты:
+ * - блокирует UI при успешном завершении.
+ */
+async function finishDialog(reason) {
+    if (!window.chatConfig || window.chatConfig.dialogStatus !== "active") {
+        return true;
+    }
+
+    const formData = new FormData();
+    formData.append("reason", reason);
+    formData.append("csrfmiddlewaretoken", getCsrfToken());
+
+    try {
+        const response = await fetch(window.chatConfig.finishUrl, {
+            method: "POST",
+            body: formData,
+            headers: {
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+            alert(payload.error || "Не удалось завершить диалог.");
+            return false;
+        }
+        lockChatUi(payload.dialog_status || "finished");
+        return true;
+    } catch (error) {
+        alert("Ошибка сети при завершении диалога.");
+        return false;
+    }
+}
+
+/**
+ * Отправляет сигнал ухода со страницы через `sendBeacon` и fallback-запрос.
+ *
+ * Контекст использования:
+ * - вызывается в `pagehide`, чтобы не потерять завершение сессии при закрытии вкладки.
+ *
+ * Параметры:
+ * - отсутствуют.
+ *
+ * Возвращает:
+ * - отсутствует.
+ *
+ * Исключения и особые случаи:
+ * - если диалог уже завершён, запрос не отправляется.
+ *
+ * Побочные эффекты:
+ * - отправляет POST-запрос на endpoint `page_leave`.
+ */
+function sendPageLeaveSignal() {
+    if (!window.chatConfig || window.chatConfig.dialogStatus !== "active") {
+        return;
+    }
+
+    const beaconData = new FormData();
+    beaconData.append("reason", "page_leave");
+
+    let delivered = false;
+    if (navigator.sendBeacon) {
+        delivered = navigator.sendBeacon(window.chatConfig.pageLeaveUrl, beaconData);
+    }
+
+    if (!delivered) {
+        fetch(window.chatConfig.pageLeaveUrl, {
+            method: "POST",
+            body: beaconData,
+            keepalive: true,
+            credentials: "same-origin",
+            headers: {
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        }).catch(function () {
+            return null;
+        });
+    }
+}
+
+/**
+ * Инициализирует клиентский таймер и автозавершение по истечении времени.
+ *
+ * Контекст использования:
+ * - запускается при открытии чатового экрана.
+ *
+ * Параметры:
+ * - отсутствуют.
+ *
+ * Возвращает:
+ * - отсутствует.
+ *
+ * Исключения и особые случаи:
+ * - если таймерный элемент отсутствует, функция завершается без действий.
+ *
+ * Побочные эффекты:
+ * - обновляет таймер в DOM и вызывает `finishDialog('timeout')` при нуле.
+ */
+function initDialogTimer() {
+    const timerNode = document.getElementById("chat-timer");
+    if (!timerNode || !window.chatConfig) {
+        return;
+    }
+
+    let secondsRemaining = parseInt(window.chatConfig.secondsRemaining || 0, 10);
+    timerNode.textContent = formatTimerValue(secondsRemaining);
+
+    const timerId = setInterval(async function () {
+        if (window.chatConfig.dialogStatus !== "active") {
+            clearInterval(timerId);
+            return;
+        }
+        secondsRemaining = Math.max(secondsRemaining - 1, 0);
+        timerNode.textContent = formatTimerValue(secondsRemaining);
+
+        if (secondsRemaining === 0) {
+            clearInterval(timerId);
+            const finished = await finishDialog("timeout");
+            if (finished) {
+                alert("Время диалога истекло.");
+            }
+        }
+    }, 1000);
+}
+
+/**
+ * Инициализирует обработчик кнопки «Дай обратную связь».
+ *
+ * Контекст использования:
+ * - позволяет пользователю завершить сценарий вручную.
+ *
+ * Параметры:
+ * - отсутствуют.
+ *
+ * Возвращает:
+ * - отсутствует.
+ *
+ * Исключения и особые случаи:
+ * - если кнопка отсутствует, обработчик не регистрируется.
+ *
+ * Побочные эффекты:
+ * - вызывает серверное завершение диалога и блокирует UI.
+ */
+function initManualFinishButton() {
+    const finishButton = document.getElementById("dialog-finish-button");
+    if (!finishButton) {
+        return;
+    }
+
+    finishButton.addEventListener("click", async function () {
+        finishButton.disabled = true;
+        const finished = await finishDialog("manual_feedback");
+        if (!finished) {
+            finishButton.disabled = false;
+        }
+    });
+}
+
+/**
  * Инициализирует отправку сообщений в JSON-endpoint без перезагрузки страницы.
  *
  * Контекст использования:
@@ -130,7 +386,7 @@ function initChatSendForm() {
         const formData = new FormData();
         formData.append("text", text);
         formData.append("client_message_id", generateUuidV4());
-        formData.append("csrfmiddlewaretoken", window.chatConfig.csrfToken);
+        formData.append("csrfmiddlewaretoken", getCsrfToken());
 
         try {
             const response = await fetch(window.chatConfig.sendUrl, {
@@ -153,13 +409,40 @@ function initChatSendForm() {
             alert("Ошибка сети при отправке сообщения.");
         } finally {
             typingIndicator.classList.add("d-none");
-            input.disabled = false;
-            button.disabled = false;
-            input.focus();
+            if (window.chatConfig.dialogStatus === "active") {
+                input.disabled = false;
+                button.disabled = false;
+                input.focus();
+            }
         }
     });
 
     scrollToBottom();
 }
 
-document.addEventListener("DOMContentLoaded", initChatSendForm);
+/**
+ * Инициализирует обработчики экрана чата после загрузки DOM.
+ *
+ * Контекст использования:
+ * - единая точка запуска для всех клиентских модулей страницы.
+ *
+ * Параметры:
+ * - отсутствуют.
+ *
+ * Возвращает:
+ * - отсутствует.
+ *
+ * Исключения и особые случаи:
+ * - отсутствуют.
+ *
+ * Побочные эффекты:
+ * - подписывает обработчики на события окна и формы.
+ */
+function initChatPage() {
+    initChatSendForm();
+    initManualFinishButton();
+    initDialogTimer();
+    window.addEventListener("pagehide", sendPageLeaveSignal);
+}
+
+document.addEventListener("DOMContentLoaded", initChatPage);
