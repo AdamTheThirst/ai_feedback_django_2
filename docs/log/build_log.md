@@ -150,3 +150,35 @@
 ### Что не сделано в этом шаге
 - Полноценный чатовый runtime (будет реализован на следующем этапе).
 - Полная функциональность энциклопедии и личного кабинета (на этом шаге добавлены входные страницы).
+
+## Шаг 5 — DialogSession lifecycle (создание + чат)
+
+Дата: 2026-04-04
+
+### Что сделано
+- Расширена модель `DialogSession`:
+  - добавлены связи `game`, `scenario`, `scenario_prompt_used`,
+  - добавлены snapshot-поля `conditions_snapshot_text`, `opening_message_snapshot_text`,
+  - добавлен флаг `pending_response`.
+- Добавлена модель `DialogMessage` с порядком сообщений, ролью, текстом, длиной и `client_message_id` для idempotency.
+- Реализовано создание сессии и стартового сообщения персонажа в `ScenarioStartView`.
+- Реализован чатовый экран `dialogs/chat.html` согласно композиции UI_base_chat (header, conditions, message list, composer, typing indicator).
+- Реализован JSON-endpoint отправки сообщения `dialogs:send_message`.
+- Добавлен сервис `send_user_message` с:
+  - краткоживущей cache-блокировкой от конкурентных отправок,
+  - idempotency-защитой по `client_message_id`,
+  - сохранением user/assistant сообщений и обновлением счётчиков сессии.
+- Добавлен временный адаптер `generate_game_reply` в integrations.
+- Добавлена миграция `apps/dialogs/migrations/0002_dialog_chat_runtime.py`.
+- Добавлены тесты для API отправки сообщений `apps/dialogs/tests/test_send_message_api.py` и обновлены тесты home-flow.
+
+### Как это связано между собой
+- Home -> `ScenarioStartView` создаёт `DialogSession` и первое `DialogMessage` ассистента.
+- Экран `DialogChatView` рендерит историю из `DialogMessage`.
+- JS `static/js/chat.js` отправляет сообщения на JSON-endpoint.
+- `DialogSendMessageApiView` вызывает сервис `send_user_message`, который централизует все проверки конкурентности/idempotency и сохранение.
+
+### Что не сделано в этом шаге
+- Финальная интеграция с внешним LLM (используется временный адаптер-стаб).
+- Логика завершения диалога кнопкой «Дай обратную связь» и таймерный auto-finish.
+- Расширенные лимиты длины сообщения/ответа через PlatformSettings.

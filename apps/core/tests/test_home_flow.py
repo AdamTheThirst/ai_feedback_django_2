@@ -4,16 +4,16 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.models import User
-from apps.content.models import Game, Scenario
+from apps.content.models import Game, Scenario, ScenarioPrompt
 from apps.core.enums import DialogStatus
-from apps.dialogs.models import DialogSession
+from apps.dialogs.models import DialogMessage, DialogSession
 
 
 class HomeFlowTests(TestCase):
     """Проверяет пользовательский flow главной страницы и запуск сценария.
 
     Контекст использования:
-    - валидирует ключевые требования итерации 5:
+    - валидирует ключевые требования итерации 5/6:
       список игр/сценариев, нижние точки входа и запрет второго активного диалога.
 
     Параметры:
@@ -30,7 +30,7 @@ class HomeFlowTests(TestCase):
     """
 
     def setUp(self) -> None:
-        """Подготавливает пользователя и один опубликованный сценарий.
+        """Подготавливает пользователя и один опубликованный сценарий с активным промтом.
 
         Контекст использования:
         - выполняется перед каждым тестом.
@@ -57,6 +57,12 @@ class HomeFlowTests(TestCase):
             conditions_text="conditions",
             opening_message_text="opening",
             is_published=True,
+        )
+        self.prompt = ScenarioPrompt.objects.create(
+            scenario=self.scenario,
+            title="prompt",
+            prompt_text="text",
+            is_active=True,
         )
 
     def test_home_displays_game_and_scenario_buttons(self) -> None:
@@ -118,8 +124,8 @@ class HomeFlowTests(TestCase):
         self.assertContains(response, "У вас уже есть активный диалог")
         self.assertEqual(DialogSession.objects.filter(user=self.user, status=DialogStatus.ACTIVE).count(), 1)
 
-    def test_start_scenario_creates_dialog_and_redirects(self) -> None:
-        """Проверяет создание сессии при первом запуске сценария.
+    def test_start_scenario_creates_dialog_and_opening_message(self) -> None:
+        """Проверяет создание сессии и стартового сообщения ассистента.
 
         Контекст использования:
         - подтверждает корректный POST-flow кнопки сценария.
@@ -134,7 +140,7 @@ class HomeFlowTests(TestCase):
         - отсутствуют.
 
         Побочные эффекты:
-        - создаёт новую запись `DialogSession`.
+        - создаёт новую запись `DialogSession` и первое сообщение ассистента.
         """
 
         self.client.login(username=self.user.email, password="pass12345")
@@ -143,5 +149,9 @@ class HomeFlowTests(TestCase):
             reverse("scenario_start", kwargs={"game_slug": self.game.slug, "scenario_slug": self.scenario.slug})
         )
 
+        dialog = DialogSession.objects.get(user=self.user)
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(DialogSession.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(dialog.scenario_id, self.scenario.id)
+        self.assertEqual(dialog.scenario_prompt_used_id, self.prompt.id)
+        self.assertEqual(dialog.assistant_message_count, 1)
+        self.assertEqual(DialogMessage.objects.filter(dialog=dialog, role="assistant").count(), 1)

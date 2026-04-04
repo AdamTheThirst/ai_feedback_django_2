@@ -1,0 +1,50 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+
+{% block title %}{{ object.game.title }} | {{ object.scenario.title }}{% endblock %}
+
+{% block content %}
+<div class="chat-shell">
+    <section class="chat-card">
+        <header class="chat-header">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                <div class="small text-muted">{{ object.game.title }} | {{ object.scenario.title }}</div>
+                <div class="chat-timer" id="chat-timer">10:00</div>
+            </div>
+            <button class="btn btn-warning w-100 mb-2" type="button" disabled>Дай обратную связь</button>
+            <div class="conditions-panel">{{ object.conditions_snapshot_text }}</div>
+        </header>
+
+        <div class="messages-scroll-area" id="messages-scroll-area">
+            <div id="message-list">
+                {% for message in messages %}
+                    <div class="message-row {% if message.role == message_role_user %}message-user{% else %}message-assistant{% endif %}">
+                        <div class="message-bubble">{{ message.text }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div id="typing-indicator" class="typing-indicator d-none">думаю...</div>
+        </div>
+
+        <footer class="chat-composer">
+            <form id="chat-send-form" method="post" action="{% url 'dialogs:send_message' public_id=object.public_id %}">
+                {% csrf_token %}
+                <div class="input-group">
+                    <textarea id="chat-input" name="text" class="form-control" rows="2" placeholder="Введите сообщение" {% if not can_send %}disabled{% endif %}></textarea>
+                    <button id="chat-send-button" class="btn btn-primary" type="submit" {% if not can_send %}disabled{% endif %}>Отправить</button>
+                </div>
+            </form>
+        </footer>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.chatConfig = {
+        sendUrl: "{% url 'dialogs:send_message' public_id=object.public_id %}",
+        csrfToken: "{{ csrf_token }}"
+    };
+</script>
+<script src="{% static 'js/chat.js' %}"></script>
+{% endblock %}

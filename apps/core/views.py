@@ -2,13 +2,15 @@
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import TemplateView
 
-from apps.content.models import Game, Scenario
-from apps.dialogs.models import DialogSession
+from apps.content.models import Game, Scenario, ScenarioPrompt
+from apps.core.enums import DialogMessageRole
+from apps.dialogs.models import DialogMessage, DialogSession
 from apps.dialogs.services.session import has_active_dialog
 
 
@@ -82,18 +84,19 @@ class ScenarioStartView(LoginRequiredMixin, View):
     - получает `game_slug` и `scenario_slug` из URL.
 
     Возвращает:
-    - redirect на страницу активного диалога либо обратно на главную.
+    - redirect на страницу активного чата либо обратно на главную.
 
     Исключения и особые случаи:
     - если сценарий недоступен, возвращается 404;
     - если активный диалог уже существует, новый не создаётся.
 
     Побочные эффекты:
-    - создаёт запись `DialogSession`.
+    - создаёт запись `DialogSession` и стартовое сообщение ассистента.
     """
 
+    @transaction.atomic
     def post(self, request: HttpRequest, game_slug: str, scenario_slug: str) -> HttpResponse:
-        """Запускает сценарий и создаёт активную сессию диалога.
+        """Запускает сценарий, создаёт активную сессию и стартовую реплику персонажа.
 
         Контекст использования:
         - обрабатывает отправку формы запуска сценария.
@@ -104,13 +107,13 @@ class ScenarioStartView(LoginRequiredMixin, View):
         - `scenario_slug`: slug сценария внутри игры.
 
         Возвращает:
-        - redirect на placeholder-страницу диалога либо обратно на главную страницу.
+        - redirect на чатовый экран либо на главную страницу при блокировке запуска.
 
         Исключения и особые случаи:
-        - при наличии активного диалога выводит предупреждение и не создаёт новую запись.
+        - при отсутствии активного `ScenarioPrompt` пользователь получает предупреждение.
 
         Побочные эффекты:
-        - может создать новую запись `DialogSession` в БД.
+        - создаёт `DialogSession` и первую запись `DialogMessage` роли ассистента.
         """
 
         scenario = get_object_or_404(
@@ -127,29 +130,35 @@ class ScenarioStartView(LoginRequiredMixin, View):
             messages.warning(request, "У вас уже есть активный диалог. Завершите его перед запуском нового сценария.")
             return redirect("home")
 
-        dialog = DialogSession.objects.create(user=request.user)
+        prompt = ScenarioPrompt.objects.filter(scenario=scenario, is_active=True, is_archived=False).first()
+        if not prompt:
+            messages.error(request, "Для сценария не настроен активный игровой промт.")
+            return redirect("home")
+
+        dialog = DialogSession.objects.create(
+            user=request.user,
+            game=scenario.game,
+            scenario=scenario,
+            scenario_prompt_used=prompt,
+            conditions_snapshot_text=scenario.conditions_text,
+            opening_message_snapshot_text=scenario.opening_message_text,
+        )
+
+        DialogMessage.objects.create(
+            dialog=dialog,
+            sequence_no=1,
+            role=DialogMessageRole.ASSISTANT,
+            text=scenario.opening_message_text,
+        )
+        dialog.assistant_message_count = 1
+        dialog.save(update_fields=["assistant_message_count", "updated_at"])
+
         messages.success(request, f"Сценарий «{scenario.title}» запущен.")
-        return redirect("dialogs:placeholder", public_id=dialog.public_id)
+        return redirect("dialogs:chat", public_id=dialog.public_id)
 
 
 class EncyclopediaEntryView(LoginRequiredMixin, View):
-    """Открывает пользовательскую точку входа в раздел «Энциклопедия».
-
-    Контекст использования:
-    - нижняя кнопка главной страницы до полной интеграции энциклопедии в отдельной итерации.
-
-    Параметры:
-    - использует только текущий HTTP-запрос.
-
-    Возвращает:
-    - HTML-страницу входа в раздел.
-
-    Исключения и особые случаи:
-    - анонимные пользователи перенаправляются на вход.
-
-    Побочные эффекты:
-    - отсутствуют.
-    """
+    """Открывает пользовательскую точку входа в раздел «Энциклопедия»."""
 
     def get(self, request: HttpRequest) -> HttpResponse:
         """Рендерит страницу пользовательского входа в энциклопедию.
@@ -174,23 +183,7 @@ class EncyclopediaEntryView(LoginRequiredMixin, View):
 
 
 class CabinetEntryView(LoginRequiredMixin, View):
-    """Открывает пользовательскую точку входа в раздел «Личный кабинет».
-
-    Контекст использования:
-    - нижняя кнопка главной страницы, ведущая в профильный раздел пользователя.
-
-    Параметры:
-    - использует текущий HTTP-запрос.
-
-    Возвращает:
-    - HTML-страницу входа в личный кабинет.
-
-    Исключения и особые случаи:
-    - анонимные пользователи перенаправляются на страницу входа.
-
-    Побочные эффекты:
-    - отсутствуют.
-    """
+    """Открывает пользовательскую точку входа в раздел «Личный кабинет»."""
 
     def get(self, request: HttpRequest) -> HttpResponse:
         """Рендерит страницу пользовательского входа в личный кабинет.
