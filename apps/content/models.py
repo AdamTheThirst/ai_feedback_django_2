@@ -2,6 +2,8 @@
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils.html import strip_tags
+from django.utils.text import slugify
 
 from apps.core.models import ArchivableModel, OwnedModel, PublicIdModel, TimestampedModel
 
@@ -393,6 +395,161 @@ class SystemPrompt(PublicIdModel, ArchivableModel, OwnedModel, TimestampedModel)
 
         Контекст использования:
         - отображается в административных списках.
+
+        Параметры:
+        - отсутствуют.
+
+        Возвращает:
+        - значение поля `title`.
+
+        Исключения и особые случаи:
+        - отсутствуют.
+
+        Побочные эффекты:
+        - отсутствуют.
+        """
+
+        return self.title
+
+
+class EncyclopediaArticle(TimestampedModel):
+    """Описывает статью пользовательской энциклопедии знаний.
+
+    Контекст использования:
+    - отображается в публичном списке и детальной странице энциклопедии;
+    - управляется через административный интерфейс администраторами.
+
+    Параметры:
+    - `title`, `slug`, `body`, `summary`, `is_published`;
+    - `created_by`, `updated_by` для аудита редактирования.
+
+    Возвращает:
+    - запись статьи энциклопедии.
+
+    Исключения и особые случаи:
+    - `slug` уникален;
+    - заголовок/summary не должны содержать HTML-теги;
+    - `summary` ограничен диапазоном 50..255 символов.
+
+    Побочные эффекты:
+    - при первичном сохранении автоматически генерирует `slug` из `title`.
+    """
+
+    title = models.CharField(max_length=128, verbose_name="Заголовок")
+    slug = models.SlugField(max_length=180, unique=True, verbose_name="Slug")
+    body = models.TextField(max_length=5000, verbose_name="Текст статьи")
+    summary = models.CharField(max_length=255, verbose_name="Краткое описание")
+    is_published = models.BooleanField(default=False, verbose_name="Опубликовано")
+    created_by = models.ForeignKey(
+        "accounts.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="encyclopedia_articles_created",
+        verbose_name="Создал",
+    )
+    updated_by = models.ForeignKey(
+        "accounts.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="encyclopedia_articles_updated",
+        verbose_name="Обновил",
+    )
+
+    class Meta:
+        """Мета-настройки таблицы статей энциклопедии."""
+
+        verbose_name = "Статья энциклопедии"
+        verbose_name_plural = "Статьи энциклопедии"
+        indexes = [
+            models.Index(fields=["is_published", "title"], name="idx_encyclopedia_pub_title"),
+        ]
+
+    def clean(self) -> None:
+        """Проверяет ограничения данных статьи перед сохранением.
+
+        Контекст использования:
+        - вызывается из админ-формы и сервисов перед записью модели.
+
+        Параметры:
+        - отсутствуют.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - `ValidationError`, если заголовок/summary содержат HTML или summary вне лимита.
+
+        Побочные эффекты:
+        - отсутствуют.
+        """
+
+        super().clean()
+        if strip_tags(self.title or "") != (self.title or ""):
+            raise ValidationError({"title": "Заголовок не должен содержать HTML-теги."})
+        if strip_tags(self.summary or "") != (self.summary or ""):
+            raise ValidationError({"summary": "Краткое описание не должно содержать HTML-теги."})
+
+        summary_len = len((self.summary or "").strip())
+        if summary_len < 50 or summary_len > 255:
+            raise ValidationError({"summary": "Краткое описание должно быть длиной от 50 до 255 символов."})
+
+    def save(self, *args, **kwargs) -> None:
+        """Сохраняет статью и формирует slug при первом создании записи.
+
+        Контекст использования:
+        - обеспечивает стабильный URL статьи при повторных редактированиях.
+
+        Параметры:
+        - `*args`, `**kwargs`: стандартные параметры ORM-сохранения.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - при коллизиях slug добавляется числовой суффикс.
+
+        Побочные эффекты:
+        - может изменить поле `slug` перед сохранением.
+        """
+
+        if not self.slug:
+            self.slug = self._generate_unique_slug()
+        super().save(*args, **kwargs)
+
+    def _generate_unique_slug(self) -> str:
+        """Генерирует уникальный slug статьи из заголовка.
+
+        Контекст использования:
+        - внутренний helper метода `save` для первичного создания URL-идентификатора.
+
+        Параметры:
+        - отсутствуют.
+
+        Возвращает:
+        - уникальное slug-значение.
+
+        Исключения и особые случаи:
+        - если заголовок не даёт валидного slug, используется префикс `article`.
+
+        Побочные эффекты:
+        - отсутствуют.
+        """
+
+        base_slug = slugify(self.title, allow_unicode=True) or "article"
+        candidate = base_slug
+        suffix = 2
+        while EncyclopediaArticle.objects.filter(slug=candidate).exclude(pk=self.pk).exists():
+            candidate = f"{base_slug}-{suffix}"
+            suffix += 1
+        return candidate
+
+    def __str__(self) -> str:
+        """Возвращает краткое строковое представление статьи.
+
+        Контекст использования:
+        - используется в админке и диагностических выводах.
 
         Параметры:
         - отсутствуют.

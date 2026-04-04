@@ -1,8 +1,17 @@
 """Регистрация контентных моделей в Django Admin."""
 
-from django.contrib import admin
+from django.contrib import admin, messages
 
-from apps.content.models import AnalysisPrompt, Game, Scenario, ScenarioMediaAsset, ScenarioPrompt, SystemPrompt
+from apps.content.models import (
+    AnalysisPrompt,
+    EncyclopediaArticle,
+    Game,
+    Scenario,
+    ScenarioMediaAsset,
+    ScenarioPrompt,
+    SystemPrompt,
+)
+from apps.content.services.encyclopedia import build_article_summary
 
 
 @admin.register(Game)
@@ -32,23 +41,7 @@ class GameAdmin(admin.ModelAdmin):
 
 @admin.register(Scenario)
 class ScenarioAdmin(admin.ModelAdmin):
-    """Настраивает отображение сценариев в административном интерфейсе.
-
-    Контекст использования:
-    - применяется в Django Admin для управления сценариями конкретных игр.
-
-    Параметры:
-    - фильтрация и поиск задаются через стандартные атрибуты `ModelAdmin`.
-
-    Возвращает:
-    - CRUD-интерфейс модели `Scenario`.
-
-    Исключения и особые случаи:
-    - отсутствуют.
-
-    Побочные эффекты:
-    - отсутствуют.
-    """
+    """Настраивает отображение сценариев в административном интерфейсе."""
 
     list_display = ("title", "game", "sort_order", "is_published", "is_archived", "created_by")
     list_filter = ("game", "is_published", "is_archived")
@@ -57,23 +50,7 @@ class ScenarioAdmin(admin.ModelAdmin):
 
 @admin.register(ScenarioPrompt)
 class ScenarioPromptAdmin(admin.ModelAdmin):
-    """Настраивает отображение игровых промтов в административном интерфейсе.
-
-    Контекст использования:
-    - применяется для управления активными и архивными версиями сценарных промтов.
-
-    Параметры:
-    - список и фильтры задаются атрибутами класса.
-
-    Возвращает:
-    - CRUD-интерфейс модели `ScenarioPrompt`.
-
-    Исключения и особые случаи:
-    - отсутствуют.
-
-    Побочные эффекты:
-    - отсутствуют.
-    """
+    """Настраивает отображение игровых промтов в административном интерфейсе."""
 
     list_display = ("title", "scenario", "is_active", "is_archived", "created_by")
     list_filter = ("is_active", "is_archived")
@@ -82,23 +59,7 @@ class ScenarioPromptAdmin(admin.ModelAdmin):
 
 @admin.register(AnalysisPrompt)
 class AnalysisPromptAdmin(admin.ModelAdmin):
-    """Настраивает отображение аналитических промтов в административном интерфейсе.
-
-    Контекст использования:
-    - применяется для управления критериями анализа в рамках игры.
-
-    Параметры:
-    - сортировка, поиск и фильтрация определяются атрибутами класса.
-
-    Возвращает:
-    - CRUD-интерфейс модели `AnalysisPrompt`.
-
-    Исключения и особые случаи:
-    - отсутствуют.
-
-    Побочные эффекты:
-    - отсутствуют.
-    """
+    """Настраивает отображение аналитических промтов в административном интерфейсе."""
 
     list_display = ("title", "game", "alias", "sort_order", "is_active", "is_archived")
     list_filter = ("game", "is_active", "is_archived")
@@ -107,23 +68,7 @@ class AnalysisPromptAdmin(admin.ModelAdmin):
 
 @admin.register(SystemPrompt)
 class SystemPromptAdmin(admin.ModelAdmin):
-    """Настраивает отображение системных промтов в административном интерфейсе.
-
-    Контекст использования:
-    - используется супер-администраторами для редактирования служебных промтов.
-
-    Параметры:
-    - настраивается атрибутами `ModelAdmin`.
-
-    Возвращает:
-    - CRUD-интерфейс модели `SystemPrompt`.
-
-    Исключения и особые случаи:
-    - отсутствуют.
-
-    Побочные эффекты:
-    - отсутствуют.
-    """
+    """Настраивает отображение системных промтов в административном интерфейсе."""
 
     list_display = ("title", "key", "is_active", "is_archived", "created_by")
     list_filter = ("is_active", "is_archived")
@@ -132,24 +77,105 @@ class SystemPromptAdmin(admin.ModelAdmin):
 
 @admin.register(ScenarioMediaAsset)
 class ScenarioMediaAssetAdmin(admin.ModelAdmin):
-    """Настраивает отображение медиа-ресурсов сценариев в административном интерфейсе.
-
-    Контекст использования:
-    - обеспечивает управление файлами сценариев и их архивным состоянием.
-
-    Параметры:
-    - задаётся набор колонок и фильтров для навигации по медиа-ресурсам.
-
-    Возвращает:
-    - CRUD-интерфейс модели `ScenarioMediaAsset`.
-
-    Исключения и особые случаи:
-    - отсутствуют.
-
-    Побочные эффекты:
-    - отсутствуют.
-    """
+    """Настраивает отображение медиа-ресурсов сценариев в административном интерфейсе."""
 
     list_display = ("title", "mime_type", "file_size_bytes", "is_archived", "uploaded_by")
     list_filter = ("is_archived",)
     search_fields = ("title", "original_filename", "checksum_sha256")
+
+
+@admin.register(EncyclopediaArticle)
+class EncyclopediaArticleAdmin(admin.ModelAdmin):
+    """Управляет статьями энциклопедии и генерацией их summary через LLM.
+
+    Контекст использования:
+    - предоставляет CRUD для админов/суперадминов;
+    - поддерживает массовую и точечную генерацию краткого описания статьи.
+
+    Параметры:
+    - используется стандартный набор атрибутов `ModelAdmin` и action `regenerate_summary_action`.
+
+    Возвращает:
+    - административный интерфейс модели `EncyclopediaArticle`.
+
+    Исключения и особые случаи:
+    - при отсутствии summary на сохранении поле генерируется автоматически.
+
+    Побочные эффекты:
+    - при генерации summary вызывает LLM-адаптер и сохраняет обновлённые данные статей.
+    """
+
+    list_display = ("title", "slug", "is_published", "created_by", "updated_by", "updated_at")
+    list_filter = ("is_published",)
+    search_fields = ("title", "slug", "summary")
+    readonly_fields = ("slug", "created_at", "updated_at", "created_by", "updated_by")
+    actions = ["regenerate_summary_action"]
+    fieldsets = (
+        (
+            "Основные данные",
+            {
+                "fields": ("title", "slug", "body", "summary", "is_published"),
+                "description": "Текст статьи ограничен 5000 символами. Краткое описание (summary) генерируется через LLM.",
+            },
+        ),
+        ("Аудит", {"fields": ("created_by", "updated_by", "created_at", "updated_at")}),
+    )
+
+    def save_model(self, request, obj, form, change) -> None:
+        """Сохраняет статью и заполняет служебные поля автора/редактора.
+
+        Контекст использования:
+        - вызывается Django Admin при создании и редактировании статьи.
+
+        Параметры:
+        - `request`: текущий HTTP-запрос админки;
+        - `obj`: сохраняемая статья;
+        - `form`: форма admin-интерфейса;
+        - `change`: флаг режима редактирования существующей записи.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - при пустом summary генерирует его автоматически на основании title/body.
+
+        Побочные эффекты:
+        - записывает в БД `created_by`, `updated_by` и, при необходимости, `summary`.
+        """
+
+        if not obj.created_by_id:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        if not (obj.summary or "").strip():
+            obj.summary = build_article_summary(title=obj.title, body=obj.body)
+        super().save_model(request, obj, form, change)
+
+    @admin.action(description="Перегенерировать summary через LLM")
+    def regenerate_summary_action(self, request, queryset) -> None:
+        """Массово перегенерирует summary для выбранных статей через LLM-адаптер.
+
+        Контекст использования:
+        - action в списке статей админки.
+
+        Параметры:
+        - `request`: текущий HTTP-запрос;
+        - `queryset`: выбранный набор статей.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - отсутствуют.
+
+        Побочные эффекты:
+        - обновляет поле `summary` и `updated_by` у выбранных статей.
+        """
+
+        updated_count = 0
+        for article in queryset:
+            article.summary = build_article_summary(title=article.title, body=article.body)
+            article.updated_by = request.user
+            article.save(update_fields=["summary", "updated_by", "updated_at"])
+            updated_count += 1
+
+        self.message_user(request, f"Перегенерировано summary: {updated_count} шт.", level=messages.SUCCESS)

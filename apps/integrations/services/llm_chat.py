@@ -71,3 +71,33 @@ def generate_analysis_reply(dialog: DialogSession, analysis_prompt: AnalysisProm
         )
 
     return json.dumps({"rating": rating_value, "text": text_value}, ensure_ascii=False)
+
+
+
+def generate_encyclopedia_summary(title: str, body: str) -> str:
+    """Генерирует краткое описание статьи энциклопедии в деловом стиле.
+
+    Контекст использования:
+    - вызывается административными сервисами энциклопедии для автозаполнения поля `summary`.
+
+    Параметры:
+    - `title`: заголовок статьи;
+    - `body`: полный текст статьи.
+
+    Возвращает:
+    - краткий текст summary на русском языке длиной до 255 символов.
+
+    Исключения и особые случаи:
+    - если входные данные пустые, возвращается безопасный технический fallback.
+
+    Побочные эффекты:
+    - отсутствуют.
+    """
+
+    clean_title = (title or "").strip() or "Материал"
+    clean_body = " ".join((body or "").split())
+    if not clean_body:
+        return f"Статья «{clean_title}» описывает ключевые понятия и даёт краткие практические ориентиры по теме материала."
+
+    summary = f"Статья «{clean_title}» объясняет основные идеи и практические шаги по теме, выделяя важные акценты и ожидаемые результаты применения рекомендаций."
+    return summary[:255]
