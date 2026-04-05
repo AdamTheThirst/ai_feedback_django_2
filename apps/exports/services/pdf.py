@@ -1,17 +1,65 @@
 """Сервис генерации PDF-экспорта результата диалога по требованиям макета."""
 
 from io import BytesIO
+from pathlib import Path
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 from reportlab.pdfgen import canvas
 
 from apps.analysis.services.results import build_dialog_results_view_model
 from apps.dialogs.models import DialogSession
+
+
+PDF_FONT_REGULAR = "AppRegular"
+PDF_FONT_BOLD = "AppBold"
+
+
+def ensure_pdf_fonts_registered() -> tuple[str, str]:
+    """Регистрирует кириллические шрифты для PDF и возвращает их имена.
+
+    Контекст использования:
+    - вызывается перед генерацией PDF, чтобы исключить «квадратики» вместо текста;
+    - использует DejaVu Sans из типовых Linux-путей, если файл доступен.
+
+    Параметры:
+    - отсутствуют.
+
+    Возвращает:
+    - кортеж `(regular_font_name, bold_font_name)` для стилей reportlab.
+
+    Исключения и особые случаи:
+    - если TTF-файлы недоступны, возвращает fallback `Helvetica/Helvetica-Bold`.
+
+    Побочные эффекты:
+    - регистрирует шрифты в глобальном реестре reportlab.
+    """
+
+    regular_path_candidates = [
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/local/share/fonts/dejavu/DejaVuSans.ttf"),
+    ]
+    bold_path_candidates = [
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        Path("/usr/local/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
+    ]
+    regular_path = next((path for path in regular_path_candidates if path.exists()), None)
+    bold_path = next((path for path in bold_path_candidates if path.exists()), None)
+    if not regular_path or not bold_path:
+        return "Helvetica", "Helvetica-Bold"
+
+    registered = pdfmetrics.getRegisteredFontNames()
+    if PDF_FONT_REGULAR not in registered:
+        pdfmetrics.registerFont(TTFont(PDF_FONT_REGULAR, str(regular_path)))
+    if PDF_FONT_BOLD not in registered:
+        pdfmetrics.registerFont(TTFont(PDF_FONT_BOLD, str(bold_path)))
+    return PDF_FONT_REGULAR, PDF_FONT_BOLD
 
 
 class NumberedCanvas(canvas.Canvas):
@@ -122,10 +170,13 @@ class NumberedCanvas(canvas.Canvas):
         - рисует текст на текущей странице canvas.
         """
 
-        label = f"{self._pageNumber} из {page_count}"
-        self.setFont("Helvetica", 8)
+        registered = pdfmetrics.getRegisteredFontNames()
+        font_name = PDF_FONT_REGULAR if PDF_FONT_REGULAR in registered else "Helvetica"
+        separator = "из" if font_name == PDF_FONT_REGULAR else "/"
+        label = f"{self._pageNumber} {separator} {page_count}"
+        self.setFont(font_name, 8)
         self.setFillColor(colors.HexColor("#A7A7A7"))
-        x = A4[0] - 15 * mm - stringWidth(label, "Helvetica", 8)
+        x = A4[0] - 15 * mm - stringWidth(label, font_name, 8)
         y = 10 * mm
         self.drawString(x, y, label)
 
@@ -151,6 +202,7 @@ def build_result_pdf(dialog: DialogSession) -> bytes:
     """
 
     view_model = build_dialog_results_view_model(dialog)
+    regular_font_name, bold_font_name = ensure_pdf_fonts_registered()
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -164,11 +216,47 @@ def build_result_pdf(dialog: DialogSession) -> bytes:
 
     styles = getSampleStyleSheet()
     primary = colors.HexColor("#004CDE")
-    styles.add(ParagraphStyle(name="H1Blue", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=24, leading=28, textColor=primary))
-    styles.add(ParagraphStyle(name="H2Blue", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=16, leading=20, textColor=primary))
-    styles.add(ParagraphStyle(name="Big", parent=styles["Normal"], fontName="Helvetica", fontSize=16, leading=20))
-    styles.add(ParagraphStyle(name="BigBlueBold", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=16, leading=20, textColor=primary))
-    styles.add(ParagraphStyle(name="Body", parent=styles["Normal"], fontName="Helvetica", fontSize=12, leading=16, textColor=colors.black))
+    styles.add(
+        ParagraphStyle(
+            name="H1Blue",
+            parent=styles["Heading1"],
+            fontName=bold_font_name,
+            fontSize=24,
+            leading=28,
+            textColor=primary,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="H2Blue",
+            parent=styles["Heading2"],
+            fontName=bold_font_name,
+            fontSize=16,
+            leading=20,
+            textColor=primary,
+        )
+    )
+    styles.add(ParagraphStyle(name="Big", parent=styles["Normal"], fontName=regular_font_name, fontSize=16, leading=20))
+    styles.add(
+        ParagraphStyle(
+            name="BigBlueBold",
+            parent=styles["Normal"],
+            fontName=bold_font_name,
+            fontSize=16,
+            leading=20,
+            textColor=primary,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="Body",
+            parent=styles["Normal"],
+            fontName=regular_font_name,
+            fontSize=12,
+            leading=16,
+            textColor=colors.black,
+        )
+    )
 
     story = []
     story.append(Paragraph("Результат тренажёра обратной связи", styles["H1Blue"]))

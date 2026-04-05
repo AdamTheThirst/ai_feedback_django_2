@@ -4,11 +4,14 @@
 
 {% block content %}
 <div class="container py-3">
+    <div class="mb-3">
+        <a class="btn btn-primary w-100" href="{% url 'home' %}">Обратно к упражнениям</a>
+    </div>
+
     <div class="card mb-3">
         <div class="card-body">
             <h1 class="h5 mb-2">Результаты сценария</h1>
             <div class="text-muted small mb-1">{{ dialog.game.title }} | {{ dialog.scenario.title }}</div>
-            <div class="small mb-2">Статус завершения: {{ dialog.get_status_display }}</div>
             <div class="display-6">{{ total_score }} из {{ max_score }}</div>
             <div class="mt-3"><a class="btn btn-outline-primary" href="{% url "dialogs:export_pdf" public_id=dialog.public_id %}">Экспорт результатов в PDF</a></div>
         </div>
@@ -39,6 +42,10 @@
                 <div class="alert alert-secondary">Для этого диалога нет карточек анализа.</div>
             {% endif %}
         {% endfor %}
+    </div>
+
+    <div class="mt-3">
+        <a class="btn btn-primary w-100" href="{% url 'home' %}">Обратно к упражнениям</a>
     </div>
 </div>
 {% endblock %}

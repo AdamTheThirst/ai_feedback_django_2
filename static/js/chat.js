@@ -109,6 +109,32 @@ function getCsrfToken() {
 }
 
 /**
+ * Отображает нейтральное статусное сообщение внизу окна чата.
+ *
+ * Контекст использования:
+ * - заменяет браузерные `alert` при ошибках сети/валидации и технических событиях.
+ *
+ * Параметры:
+ * - `text`: текст статуса для пользователя.
+ *
+ * Возвращает:
+ * - отсутствует.
+ *
+ * Исключения и особые случаи:
+ * - если DOM-элемент отсутствует, функция ничего не делает.
+ *
+ * Побочные эффекты:
+ * - обновляет текст узла `#chat-status-line`.
+ */
+function setChatStatusLine(text) {
+    const node = document.getElementById("chat-status-line");
+    if (!node) {
+        return;
+    }
+    node.textContent = text || "";
+}
+
+/**
  * Переводит интерфейс в состояние «диалог завершён».
  *
  * Контекст использования:
@@ -183,7 +209,7 @@ function formatTimerValue(seconds) {
  * - Promise с `true`, если сервер подтвердил завершение.
  *
  * Исключения и особые случаи:
- * - при ошибке возвращает `false` и показывает alert.
+ * - при ошибке возвращает `false` и выводит нейтральный текстовый статус.
  *
  * Побочные эффекты:
  * - блокирует UI при успешном завершении.
@@ -207,16 +233,17 @@ async function finishDialog(reason) {
         });
         const payload = await response.json();
         if (!response.ok || !payload.ok) {
-            alert(payload.error || "Не удалось завершить диалог.");
+            setChatStatusLine(payload.error || "Не удалось завершить диалог.");
             return false;
         }
+        setChatStatusLine("");
         lockChatUi(payload.dialog_status || "finished");
         if (window.chatConfig.resultsUrl) {
             window.location.href = window.chatConfig.resultsUrl;
         }
         return true;
     } catch (error) {
-        alert("Ошибка сети при завершении диалога.");
+        setChatStatusLine("Ошибка сети при завершении диалога.");
         return false;
     }
 }
@@ -304,10 +331,7 @@ function initDialogTimer() {
 
         if (secondsRemaining === 0) {
             clearInterval(timerId);
-            const finished = await finishDialog("timeout");
-            if (finished) {
-                alert("Время диалога истекло.");
-            }
+            await finishDialog("timeout");
         }
     }, 1000);
 }
@@ -401,15 +425,16 @@ function initChatSendForm() {
             });
             const payload = await response.json();
             if (!response.ok || !payload.ok) {
-                alert(payload.error || "Не удалось отправить сообщение.");
+                setChatStatusLine(payload.error || "Не удалось отправить сообщение.");
             } else {
                 appendMessage(payload.user_message);
                 appendMessage(payload.assistant_message);
                 input.value = "";
+                setChatStatusLine("");
                 scrollToBottom();
             }
         } catch (error) {
-            alert("Ошибка сети при отправке сообщения.");
+            setChatStatusLine("Ошибка сети при отправке сообщения.");
         } finally {
             typingIndicator.classList.add("d-none");
             if (window.chatConfig.dialogStatus === "active") {

@@ -47,6 +47,42 @@ class ScenarioAdmin(admin.ModelAdmin):
     list_filter = ("game", "is_published", "is_archived")
     search_fields = ("title", "slug", "game__title")
 
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        """Добавляет пояснения к полям сценария в админ-форме.
+
+        Контекст использования:
+        - используется при создании/редактировании `Scenario` в Django Admin;
+        - снижает путаницу между «Кратким описанием» и «Условиями сценария».
+
+        Параметры:
+        - `request`: текущий HTTP-запрос;
+        - `obj`: редактируемый объект или `None`;
+        - `change`: флаг режима редактирования;
+        - `**kwargs`: дополнительные параметры `ModelAdmin.get_form`.
+
+        Возвращает:
+        - класс формы администратора с обновлёнными `help_text`.
+
+        Исключения и особые случаи:
+        - отсутствуют.
+
+        Побочные эффекты:
+        - изменяет текст подсказок в форме админки.
+        """
+
+        form = super().get_form(request, obj=obj, change=change, **kwargs)
+        if "short_description" in form.base_fields:
+            form.base_fields["short_description"].help_text = (
+                "Краткое описание показывается в админке и карточках контента. "
+                "Этот текст не вставляется в чат персонажа."
+            )
+        if "conditions_text" in form.base_fields:
+            form.base_fields["conditions_text"].help_text = (
+                "Условия сценария видит пользователь вверху экрана чата. "
+                "Это рабочий контекст упражнения для диалога."
+            )
+        return form
+
 
 @admin.register(ScenarioPrompt)
 class ScenarioPromptAdmin(admin.ModelAdmin):

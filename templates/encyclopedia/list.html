@@ -16,7 +16,9 @@
                     <a class="btn btn-sm btn-primary" href="{% url 'encyclopedia_detail' slug=article.slug %}">Читать</a>
                 </div>
             {% empty %}
-                <div class="alert alert-secondary">Опубликованных статей пока нет.</div>
+                <div class="alert alert-secondary">
+                    Опубликованных статей пока нет. Проверьте, что в админке для статьи включён флаг «Опубликовано».
+                </div>
             {% endfor %}
         </div>
 

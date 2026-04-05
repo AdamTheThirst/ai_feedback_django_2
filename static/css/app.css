@@ -3,6 +3,41 @@
     background-color: #f5f6f8;
 }
 
+.btn-primary {
+    --bs-btn-bg: #004cde;
+    --bs-btn-border-color: #004cde;
+    --bs-btn-hover-bg: #003eb6;
+    --bs-btn-hover-border-color: #003eb6;
+    --bs-btn-active-bg: #0035a0;
+    --bs-btn-active-border-color: #0035a0;
+}
+
+.btn-warning {
+    --bs-btn-bg: #ff5400;
+    --bs-btn-border-color: #ff5400;
+    --bs-btn-color: #fff;
+    --bs-btn-hover-bg: #e24b00;
+    --bs-btn-hover-border-color: #e24b00;
+    --bs-btn-active-bg: #c84200;
+    --bs-btn-active-border-color: #c84200;
+}
+
+.btn-outline-primary {
+    --bs-btn-color: #004cde;
+    --bs-btn-border-color: #004cde;
+    --bs-btn-hover-bg: #004cde;
+    --bs-btn-hover-border-color: #004cde;
+}
+
+.auth-card {
+    width: min(100%, 560px);
+    margin: 6vh auto 0;
+}
+
+.auth-card-body {
+    padding: 24px;
+}
+
 .chat-shell {
     display: flex;
     justify-content: center;
