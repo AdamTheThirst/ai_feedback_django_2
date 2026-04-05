@@ -1,6 +1,5 @@
-"""Сервис запуска аналитики по завершённому диалогу и валидации JSON-ответов."""
+"""Сервис запуска аналитики по завершённому диалогу и сохранения текстовых ответов модели."""
 
-import json
 import traceback
 from dataclasses import dataclass
 
@@ -17,23 +16,23 @@ from apps.integrations.services.llm_chat import generate_analysis_reply
 
 @dataclass
 class ParsedAnalysisResponse:
-    """Описывает нормализованный результат парсинга ответа аналитической модели.
+    """Описывает нормализованный результат обработки текстового ответа аналитической модели.
 
     Контекст использования:
-    - используется как типизированный контракт между парсером JSON и движком сохранения результата.
+    - используется как типизированный контракт между обработчиком ответа LLM и движком сохранения результата.
 
     Параметры:
     - `status`: итоговый статус валидации;
-    - `rating`: оценка по критерию;
-    - `text`: текст аналитического комментария;
-    - `normalized_json`: валидный нормализованный JSON при успешном разборе;
+    - `rating`: техническое значение рейтинга для совместимости с текущей схемой БД;
+    - `text`: финальный текст аналитического комментария;
+    - `normalized_json`: всегда `None`, так как анализ хранится как обычный текст;
     - `error_message`: техническое описание причины ошибки.
 
     Возвращает:
     - dataclass-объект для единообразной обработки результата.
 
     Исключения и особые случаи:
-    - допускает `normalized_json=None` для невалидных ответов.
+    - допускает `normalized_json=None` для всех ответов новой текстовой схемы.
 
     Побочные эффекты:
     - отсутствуют.
@@ -74,112 +73,45 @@ def build_dialog_transcript(dialog: DialogSession) -> str:
 
 
 def parse_analysis_response(raw_response_text: str, rating_min: int, rating_max: int) -> ParsedAnalysisResponse:
-    """Валидирует и нормализует JSON-ответ аналитической модели.
+    """Нормализует текстовый ответ аналитической модели без JSON-парсинга.
 
     Контекст использования:
     - применяется движком анализа для каждого ответа LLM;
-    - реализует обязательный контракт `{rating, text}` и диапазонную проверку рейтинга.
+    - реализует новый контракт: модель возвращает обычный текст аналитики.
 
     Параметры:
-    - `raw_response_text`: сырой ответ модели;
-    - `rating_min`: минимально допустимый балл;
-    - `rating_max`: максимально допустимый балл.
+    - `raw_response_text`: сырой текст ответа модели;
+    - `rating_min`: минимальный балл шкалы критерия (технический параметр совместимости);
+    - `rating_max`: максимальный балл шкалы критерия (технический параметр совместимости).
 
     Возвращает:
-    - `ParsedAnalysisResponse` со статусом `valid`, `invalid_json` или `invalid_schema`.
+    - `ParsedAnalysisResponse` со статусом `valid` или `invalid_schema` для пустого ответа.
 
     Исключения и особые случаи:
-    - при невалидной структуре возвращает статус ошибки без исключения наружу.
+    - пустой или пробельный ответ помечается как невалидный и заменяется fallback-текстом.
 
     Побочные эффекты:
     - отсутствуют.
     """
 
-    normalized_raw = normalize_analysis_json_text(raw_response_text)
-    try:
-        payload = json.loads(normalized_raw)
-    except json.JSONDecodeError as exc:
-        return ParsedAnalysisResponse(
-            status=AnalysisValidationStatus.INVALID_JSON,
-            rating=rating_min,
-            text="Не удалось разобрать ответ аналитической модели.",
-            normalized_json=None,
-            error_message=f"Невалидный JSON: {exc}",
-        )
-
-    if not isinstance(payload, dict):
+    _ = rating_max
+    cleaned_text = (raw_response_text or "").strip()
+    if not cleaned_text:
         return ParsedAnalysisResponse(
             status=AnalysisValidationStatus.INVALID_SCHEMA,
             rating=rating_min,
-            text="Ответ аналитической модели имеет неверную структуру.",
+            text="Не удалось получить текст аналитики.",
             normalized_json=None,
-            error_message="Корневой элемент JSON должен быть объектом.",
+            error_message="Пустой текстовый ответ аналитической модели.",
         )
 
-    rating = payload.get("rating")
-    text = payload.get("text")
-    if isinstance(rating, str) and rating.strip().lstrip("-").isdigit():
-        rating = int(rating.strip())
-    if not isinstance(rating, int) or not isinstance(text, str) or not text.strip():
-        return ParsedAnalysisResponse(
-            status=AnalysisValidationStatus.INVALID_SCHEMA,
-            rating=rating_min,
-            text="Ответ аналитической модели имеет неверную схему.",
-            normalized_json=None,
-            error_message="Ожидались поля rating:int и text:str (непустой).",
-        )
-    if rating < rating_min or rating > rating_max:
-        return ParsedAnalysisResponse(
-            status=AnalysisValidationStatus.INVALID_SCHEMA,
-            rating=rating_min,
-            text="Оценка в ответе аналитической модели вне допустимого диапазона.",
-            normalized_json=None,
-            error_message=f"rating={rating} вне диапазона [{rating_min}, {rating_max}]",
-        )
-
-    normalized = {"rating": rating, "text": text.strip()}
     return ParsedAnalysisResponse(
         status=AnalysisValidationStatus.VALID,
-        rating=rating,
-        text=text.strip(),
-        normalized_json=normalized,
+        rating=rating_min,
+        text=cleaned_text,
+        normalized_json=None,
         error_message="",
     )
-
-
-def normalize_analysis_json_text(raw_response_text: str) -> str:
-    """Нормализует сырой ответ LLM к JSON-строке для парсинга.
-
-    Контекст использования:
-    - применяется перед `json.loads` в аналитическом парсере;
-    - повышает устойчивость к форматам вида ```json ... ``` и к тексту вокруг JSON.
-
-    Параметры:
-    - `raw_response_text`: исходный текст ответа LLM.
-
-    Возвращает:
-    - строку, максимально близкую к JSON-объекту.
-
-    Исключения и особые случаи:
-    - если не удаётся выделить объект, возвращает исходную строку.
-
-    Побочные эффекты:
-    - отсутствуют.
-    """
-
-    raw = (raw_response_text or "").strip()
-    if not raw:
-        return raw
-
-    if raw.startswith("```"):
-        lines = [line for line in raw.splitlines() if not line.strip().startswith("```")]
-        raw = "\n".join(lines).strip()
-
-    start = raw.find("{")
-    end = raw.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        return raw[start : end + 1]
-    return raw
 
 
 def log_audit_event(
@@ -195,7 +127,7 @@ def log_audit_event(
     """Создаёт запись в audit log для технического события анализа.
 
     Контекст использования:
-    - используется движком аналитики для логирования старта, ошибок и невалидных JSON-ответов.
+    - используется движком аналитики для логирования старта, ошибок и невалидных ответов.
 
     Параметры:
     - `level`, `event_type`, `message`: базовые атрибуты события;
@@ -230,7 +162,7 @@ def run_analysis_for_dialog(dialog: DialogSession) -> AnalysisRun | None:
 
     Контекст использования:
     - вызывается после завершения/прерывания диалога, если есть пользовательские реплики;
-    - реализует сохранение `AnalysisRun` и `AnalysisResult` в рамках серверного lifecycle.
+    - сохраняет текстовые ответы аналитики в `AnalysisResult`.
 
     Параметры:
     - `dialog`: завершённая или прерванная сессия.
@@ -240,7 +172,7 @@ def run_analysis_for_dialog(dialog: DialogSession) -> AnalysisRun | None:
 
     Исключения и особые случаи:
     - при отсутствии пользовательских реплик возвращает `None` без создания `AnalysisRun`;
-    - при невалидном JSON создаёт `AnalysisResult` со статусом `fallback_saved`.
+    - при пустом ответе модели создаёт `AnalysisResult` со статусом `fallback_saved`.
 
     Побочные эффекты:
     - создаёт/обновляет `AnalysisRun`, `AnalysisResult` и `AuditLogEntry` в БД.
@@ -292,8 +224,8 @@ def run_analysis_for_dialog(dialog: DialogSession) -> AnalysisRun | None:
                 validation_status = AnalysisValidationStatus.FALLBACK_SAVED
                 log_audit_event(
                     level=AuditLogLevel.WARNING,
-                    event_type="analysis.invalid_json",
-                    message="Ответ аналитической модели не прошёл валидацию, сохранён fallback.",
+                    event_type="analysis.invalid_text",
+                    message="Ответ аналитической модели пустой, сохранён fallback.",
                     dialog=dialog,
                     analysis_run=analysis_run,
                     context_json={

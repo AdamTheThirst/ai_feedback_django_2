@@ -131,12 +131,11 @@ class DialogResultsViewTests(TestCase):
         response = self.client.get(reverse("dialogs:results", kwargs={"public_id": self.dialog.public_id}))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "4 из 5")
         self.assertContains(response, "Критерий 1")
         self.assertContains(response, "Текст анализа")
         self.assertNotContains(response, "Сырой ответ LLM")
         self.assertNotContains(response, "Статус валидации")
-        self.assertNotContains(response, "Попыток LLM")
+        self.assertNotContains(response, "из 5")
 
 
     def test_staff_user_also_does_not_see_technical_llm_fields(self) -> None:

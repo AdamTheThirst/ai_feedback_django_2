@@ -304,7 +304,7 @@ def cabinet_view(request: HttpRequest) -> HttpResponse:
 
     from django.core.paginator import Paginator
 
-    history_paginator = Paginator(dashboard["history_scores"], 10)
+    history_paginator = Paginator(dashboard["history_sessions"], 10)
     history_page = history_paginator.get_page(request.GET.get("page"))
 
     return render(

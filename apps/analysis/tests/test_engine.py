@@ -159,7 +159,7 @@ class AnalysisEngineTests(TestCase):
         assert first_result is not None
         self.assertEqual(first_result.validation_status, AnalysisValidationStatus.FALLBACK_SAVED)
         self.assertTrue(first_result.validation_error_message)
-        self.assertTrue(AuditLogEntry.objects.filter(event_type="analysis.invalid_json", analysis_run=analysis_run).exists())
+        self.assertTrue(AuditLogEntry.objects.filter(event_type="analysis.invalid_text", analysis_run=analysis_run).exists())
 
     def test_no_user_messages_skips_run_creation(self) -> None:
         """Проверяет, что без пользовательских реплик `AnalysisRun` не создаётся.
@@ -188,11 +188,11 @@ class AnalysisEngineTests(TestCase):
         self.assertIsNone(result)
         self.assertEqual(AnalysisRun.objects.filter(dialog=self.dialog).count(), 0)
 
-    def test_markdown_wrapped_json_is_parsed_without_fallback(self) -> None:
-        """Проверяет успешный разбор JSON, обёрнутого в markdown-блок.
+    def test_plain_text_response_is_saved_without_json_parsing(self) -> None:
+        """Проверяет успешное сохранение обычного текстового ответа аналитики.
 
         Контекст использования:
-        - защищает от типового ответа LLM в формате ```json ... ```.
+        - подтверждает новый формат аналитики, где модель возвращает не JSON, а текст.
 
         Параметры:
         - отсутствуют.
@@ -204,11 +204,11 @@ class AnalysisEngineTests(TestCase):
         - отсутствуют.
 
         Побочные эффекты:
-        - создаёт корректные `AnalysisResult` без fallback-статуса.
+        - создаёт корректный `AnalysisResult` без fallback-статуса.
         """
 
-        markdown_json = '```json\\n{\"rating\": 4, \"text\": \"Нормально\"}\\n```'
-        with patch("apps.analysis.services.engine.generate_analysis_reply", return_value=markdown_json):
+        plain_text = "Сфокусируйтесь на конкретных примерах поведения и их эффекте."
+        with patch("apps.analysis.services.engine.generate_analysis_reply", return_value=plain_text):
             analysis_run = run_analysis_for_dialog(self.dialog)
 
         self.assertIsNotNone(analysis_run)
@@ -217,13 +217,13 @@ class AnalysisEngineTests(TestCase):
         self.assertIsNotNone(first_result)
         assert first_result is not None
         self.assertEqual(first_result.validation_status, AnalysisValidationStatus.VALID)
-        self.assertEqual(first_result.rating, 4)
+        self.assertEqual(first_result.analysis_text, plain_text)
 
-    def test_string_rating_is_cast_to_int(self) -> None:
-        """Проверяет, что строковый rating в JSON приводится к целому числу.
+    def test_empty_text_response_is_saved_as_fallback(self) -> None:
+        """Проверяет fallback-сохранение при пустом текстовом ответе аналитики.
 
         Контекст использования:
-        - страхует от ответов LLM, где `rating` возвращается строкой.
+        - подтверждает устойчивость движка к пустому ответу модели.
 
         Параметры:
         - отсутствуют.
@@ -235,11 +235,10 @@ class AnalysisEngineTests(TestCase):
         - отсутствуют.
 
         Побочные эффекты:
-        - создаёт `AnalysisResult` со статусом `VALID`.
+        - создаёт warning запись audit log и fallback-результат.
         """
 
-        json_with_string_rating = '{"rating": "3", "text": "Комментарий"}'
-        with patch("apps.analysis.services.engine.generate_analysis_reply", return_value=json_with_string_rating):
+        with patch("apps.analysis.services.engine.generate_analysis_reply", return_value="   "):
             analysis_run = run_analysis_for_dialog(self.dialog)
 
         self.assertIsNotNone(analysis_run)
@@ -247,5 +246,6 @@ class AnalysisEngineTests(TestCase):
         first_result = AnalysisResult.objects.filter(analysis_run=analysis_run).order_by("sort_order_snapshot").first()
         self.assertIsNotNone(first_result)
         assert first_result is not None
-        self.assertEqual(first_result.validation_status, AnalysisValidationStatus.VALID)
-        self.assertEqual(first_result.rating, 3)
+        self.assertEqual(first_result.validation_status, AnalysisValidationStatus.FALLBACK_SAVED)
+        self.assertTrue(first_result.validation_error_message)
+        self.assertTrue(AuditLogEntry.objects.filter(event_type="analysis.invalid_text", analysis_run=analysis_run).exists())

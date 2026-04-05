@@ -36,49 +36,13 @@
 
     <section class="card mb-3">
         <div class="card-body">
-            <h2 class="h6">Мои показатели</h2>
+            <h2 class="h6">Моя статистика сессий</h2>
             <div class="row g-2">
                 <div class="col-6"><div class="border rounded p-2">Всего сессий: <strong>{{ total_sessions }}</strong></div></div>
-                <div class="col-6"><div class="border rounded p-2">Завершённых с анализом: <strong>{{ completed_sessions }}</strong></div></div>
-                <div class="col-6"><div class="border rounded p-2">Прерванные попытки: <strong>{{ interrupted_attempts }}</strong></div></div>
-                <div class="col-6"><div class="border rounded p-2">Средний балл: <strong>{% if average_score != None %}{{ average_score }}{% else %}—{% endif %}</strong></div></div>
-                <div class="col-6"><div class="border rounded p-2">Лучший результат: <strong>{% if best_score != None %}{{ best_score }}{% else %}—{% endif %}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">Завершённых: <strong>{{ completed_sessions }}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">Незавершённых: <strong>{{ unfinished_sessions }}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">С аналитикой: <strong>{{ completed_with_analysis }}</strong></div></div>
             </div>
-            {% if average_by_game %}
-                <hr>
-                <h3 class="h6">Средний балл по играм</h3>
-                <ul class="mb-0">
-                    {% for item in average_by_game %}
-                        <li>{{ item.game_title }} — {{ item.avg_score }}</li>
-                    {% endfor %}
-                </ul>
-            {% endif %}
-        </div>
-    </section>
-
-    <section class="card mb-3">
-        <div class="card-body">
-            <h2 class="h6">Сильные стороны</h2>
-            <ul class="mb-0">
-                {% for item in strong_indicators %}
-                    <li>{{ item.title }} — ср. {{ item.avg_rating }} ({{ item.count }} анализов)</li>
-                {% empty %}
-                    <li class="text-muted">Пока недостаточно данных.</li>
-                {% endfor %}
-            </ul>
-        </div>
-    </section>
-
-    <section class="card mb-3">
-        <div class="card-body">
-            <h2 class="h6">Зоны роста</h2>
-            <ul class="mb-0">
-                {% for item in weak_indicators %}
-                    <li>{{ item.title }} — ср. {{ item.avg_rating }}, ниже 3: {{ item.low_count }}</li>
-                {% empty %}
-                    <li class="text-muted">Западающих индикаторов не найдено.</li>
-                {% endfor %}
-            </ul>
         </div>
     </section>
 
@@ -88,22 +52,25 @@
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
                     <thead>
-                        <tr><th>Дата</th><th>Игра</th><th>Сценарий</th><th>Баллы</th><th>Статус</th><th></th></tr>
+                        <tr><th>Дата</th><th>Игра</th><th>Сценарий</th><th>Статус</th><th>Аналитика</th></tr>
                     </thead>
                     <tbody>
-                        {% for item in history_page.object_list %}
+                        {% for session in history_page.object_list %}
                             <tr>
-                                <td>{{ item.session.ended_at|date:"d.m.Y H:i" }}</td>
-                                <td>{{ item.session.game.title }}</td>
-                                <td>{{ item.session.scenario.title }}</td>
-                                <td>{{ item.score_n }} из {{ item.score_m }}</td>
-                                <td>{{ item.session.get_status_display }}</td>
+                                <td>{% if session.ended_at %}{{ session.ended_at|date:"d.m.Y H:i" }}{% else %}—{% endif %}</td>
+                                <td>{{ session.game.title }}</td>
+                                <td>{{ session.scenario.title }}</td>
+                                <td>{{ session.get_status_display }}</td>
                                 <td>
-                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'dialogs:results' public_id=item.session.public_id %}">Результат</a>
+                                    {% if session.has_analysis_result %}
+                                        <a class="btn btn-sm btn-outline-primary" href="{% url 'dialogs:results' public_id=session.public_id %}">Прочесть аналитику</a>
+                                    {% else %}
+                                        <span class="text-muted">Недоступна</span>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="6" class="text-muted">Пока нет завершённых сессий с анализом.</td></tr>
+                            <tr><td colspan="5" class="text-muted">История пока пустая.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

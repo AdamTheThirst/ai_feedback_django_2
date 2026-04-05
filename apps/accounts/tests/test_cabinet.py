@@ -83,7 +83,9 @@ class CabinetViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Личный кабинет")
-        self.assertContains(response, "Результат")
+        self.assertContains(response, "Прочесть аналитику")
+        self.assertContains(response, "Завершённых:")
+        self.assertContains(response, "Незавершённых:")
 
     def test_cabinet_updates_nickname(self) -> None:
         """Проверяет обновление nickname через форму профиля в кабинете."""
