@@ -134,6 +134,41 @@ class DialogResultsViewTests(TestCase):
         self.assertContains(response, "4 из 5")
         self.assertContains(response, "Критерий 1")
         self.assertContains(response, "Текст анализа")
+        self.assertNotContains(response, "Сырой ответ LLM")
+        self.assertNotContains(response, "Статус валидации")
+        self.assertNotContains(response, "Попыток LLM")
+
+
+    def test_staff_user_also_does_not_see_technical_llm_fields(self) -> None:
+        """Проверяет, что технические поля LLM скрыты даже для staff-пользователя.
+
+        Контекст использования:
+        - фиксирует требование показывать только распарсенные данные аналитики всем ролям.
+
+        Параметры:
+        - отсутствуют.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - отсутствуют.
+
+        Побочные эффекты:
+        - отсутствуют.
+        """
+
+        self.owner.is_staff = True
+        self.owner.save(update_fields=["is_staff"])
+
+        self.client.login(username=self.owner.email, password="pass12345")
+        response = self.client.get(reverse("dialogs:results", kwargs={"public_id": self.dialog.public_id}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Текст анализа")
+        self.assertNotContains(response, "Сырой ответ LLM")
+        self.assertNotContains(response, "Статус валидации")
+        self.assertNotContains(response, "Взаимодействие с LLM")
 
     def test_other_user_cannot_open_foreign_results(self) -> None:
         """Проверяет защиту от доступа к чужим результатам.
