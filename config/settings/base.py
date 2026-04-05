@@ -1,9 +1,48 @@
 """Базовые настройки Django-проекта для всех окружений."""
 
+import os
 from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def load_dotenv_file(dotenv_path: Path) -> None:
+    """Загружает переменные окружения из `.env` в `os.environ`.
+
+    Контекст использования:
+    - позволяет локальному запуску читать настройки LLM и email прямо из `.env`;
+    - выполняется один раз при импорте базового модуля настроек.
+
+    Параметры:
+    - `dotenv_path`: путь к файлу `.env`.
+
+    Возвращает:
+    - ничего не возвращает.
+
+    Исключения и особые случаи:
+    - если файл отсутствует, функция завершается без ошибок;
+    - строки без `=` пропускаются.
+
+    Побочные эффекты:
+    - добавляет переменные в окружение только если ключ ещё не определён.
+    """
+
+    if not dotenv_path.exists():
+        return
+
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
+load_dotenv_file(BASE_DIR / ".env")
 
 SECRET_KEY = "dev-only-secret-key-change-me"
 DEBUG = False
@@ -87,10 +126,10 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # AI-настройки (OpenAI-compatible endpoint)
-AI_BASE_URL = ""
-AI_API_KEY = ""
-AI_MODEL = ""
-AI_TIMEOUT_SECONDS = 60
+LLM_BASE_URL = ""
+LLM_API_KEY = ""
+AI_MODEL_NAME = ""
+LLM_TIMEOUT_SECONDS = 60
 
 # Email-настройки для восстановления пароля.
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

@@ -61,6 +61,42 @@ function appendMessage(message) {
 }
 
 /**
+ * Добавляет в ленту чата служебную строку со статусом подключения к LLM.
+ *
+ * Контекст использования:
+ * - вызывается перед добавлением ответа ассистента, чтобы пользователь видел состояние LLM.
+ *
+ * Параметры:
+ * - `statusText`: текст статуса подключения.
+ *
+ * Возвращает:
+ * - отсутствует.
+ *
+ * Исключения и особые случаи:
+ * - если текст пустой, строка не добавляется.
+ *
+ * Побочные эффекты:
+ * - модифицирует DOM списка сообщений.
+ */
+function appendLlmStatusMessage(statusText) {
+    const text = (statusText || "").trim();
+    if (!text) {
+        return;
+    }
+    const list = document.getElementById("message-list");
+    if (!list) {
+        return;
+    }
+    const row = document.createElement("div");
+    row.className = "message-row message-assistant";
+    const bubble = document.createElement("div");
+    bubble.className = "message-bubble";
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    list.appendChild(row);
+}
+
+/**
  * Прокручивает ленту сообщений к последней реплике.
  *
  * Контекст использования:
@@ -428,6 +464,7 @@ function initChatSendForm() {
                 setChatStatusLine(payload.error || "Не удалось отправить сообщение.");
             } else {
                 appendMessage(payload.user_message);
+                appendLlmStatusMessage(payload.llm_status_text);
                 appendMessage(payload.assistant_message);
                 input.value = "";
                 setChatStatusLine("");

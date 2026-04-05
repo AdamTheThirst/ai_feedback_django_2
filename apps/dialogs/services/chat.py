@@ -8,7 +8,7 @@ from django.db import transaction
 from apps.core.enums import DialogMessageRole, DialogStatus
 from apps.dialogs.models import DialogMessage, DialogSession
 from apps.dialogs.services.lifecycle import maybe_finish_dialog_by_timeout
-from apps.integrations.services.llm_chat import generate_game_reply
+from apps.integrations.services.llm_chat import LLMIntegrationError, generate_game_reply
 
 
 class DialogSendMessageError(Exception):
@@ -102,6 +102,7 @@ def send_user_message(dialog: DialogSession, text: str, client_message_id: str |
                 return {
                     "user_message": _message_payload(existing),
                     "assistant_message": _message_payload(assistant) if assistant else None,
+                    "llm_status_text": "",
                     "dialog_status": dialog.status,
                 }
 
@@ -118,12 +119,16 @@ def send_user_message(dialog: DialogSession, text: str, client_message_id: str |
             client_message_id=parsed_client_uuid,
         )
 
-        assistant_text = generate_game_reply(dialog=dialog, user_text=message_text)
+        try:
+            llm_reply = generate_game_reply(dialog=dialog, user_text=message_text)
+        except LLMIntegrationError as exc:
+            raise DialogSendMessageError(f"LLM недоступен: {exc}") from exc
+
         assistant_message = DialogMessage.objects.create(
             dialog=dialog,
             sequence_no=user_message.sequence_no + 1,
             role=DialogMessageRole.ASSISTANT,
-            text=assistant_text,
+            text=llm_reply.text,
         )
 
         dialog.user_message_count += 1
@@ -143,6 +148,7 @@ def send_user_message(dialog: DialogSession, text: str, client_message_id: str |
         return {
             "user_message": _message_payload(user_message),
             "assistant_message": _message_payload(assistant_message),
+            "llm_status_text": llm_reply.status_text,
             "dialog_status": dialog.status,
         }
     finally:

@@ -1,6 +1,7 @@
 """Тесты JSON-endpoint отправки сообщений в чатовом диалоге."""
 
 import uuid
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
@@ -9,6 +10,7 @@ from apps.accounts.models import User
 from apps.content.models import Game, Scenario, ScenarioPrompt
 from apps.core.enums import DialogMessageRole
 from apps.dialogs.models import DialogMessage, DialogSession
+from apps.integrations.services.llm_chat import LLMGameReply
 
 
 class DialogSendMessageApiTests(TestCase):
@@ -78,7 +80,8 @@ class DialogSendMessageApiTests(TestCase):
         self.dialog.save(update_fields=["assistant_message_count", "updated_at"])
         self.client.login(username=self.user.email, password="pass12345")
 
-    def test_send_message_returns_user_and_assistant_messages(self) -> None:
+    @patch("apps.dialogs.services.chat.generate_game_reply")
+    def test_send_message_returns_user_and_assistant_messages(self, generate_game_reply_mock) -> None:
         """Проверяет успешный JSON-ответ с парой новых сообщений.
 
         Контекст использования:
@@ -97,6 +100,11 @@ class DialogSendMessageApiTests(TestCase):
         - добавляет сообщения пользователя и ассистента в диалог.
         """
 
+        generate_game_reply_mock.return_value = LLMGameReply(
+            text="Тестовый ответ ассистента через LLM.",
+            status_text="LLM подключен: test-model",
+        )
+
         response = self.client.post(
             reverse("dialogs:send_message", kwargs={"public_id": self.dialog.public_id}),
             data={"text": "Привет", "client_message_id": str(uuid.uuid4())},
@@ -108,8 +116,10 @@ class DialogSendMessageApiTests(TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["user_message"]["role"], "user")
         self.assertEqual(payload["assistant_message"]["role"], "assistant")
+        self.assertIn("LLM подключен", payload["llm_status_text"])
 
-    def test_send_message_is_idempotent_by_client_message_id(self) -> None:
+    @patch("apps.dialogs.services.chat.generate_game_reply")
+    def test_send_message_is_idempotent_by_client_message_id(self, generate_game_reply_mock) -> None:
         """Проверяет защиту от дубля при повторной отправке одинакового client_message_id.
 
         Контекст использования:
@@ -127,6 +137,11 @@ class DialogSendMessageApiTests(TestCase):
         Побочные эффекты:
         - не создаёт повторных пользовательских сообщений при одинаковом client_message_id.
         """
+
+        generate_game_reply_mock.return_value = LLMGameReply(
+            text="Тестовый ответ ассистента через LLM.",
+            status_text="LLM подключен: test-model",
+        )
 
         client_id = str(uuid.uuid4())
         url = reverse("dialogs:send_message", kwargs={"public_id": self.dialog.public_id})

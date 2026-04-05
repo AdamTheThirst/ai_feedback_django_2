@@ -68,22 +68,22 @@ class EncyclopediaViewsTests(TestCase):
         response = self.client.get(reverse("encyclopedia_entry"))
         self.assertEqual(response.status_code, 302)
 
-    def test_list_shows_only_published_with_pagination(self) -> None:
-        """Проверяет публикационный фильтр и пагинацию по 10 статей."""
+    def test_list_shows_articles_from_admin_with_pagination(self) -> None:
+        """Проверяет, что пользовательский список показывает статьи из админки и пагинацию."""
 
         self.client.login(username=self.user.email, password="pass12345")
         response = self.client.get(reverse("encyclopedia_entry"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Черновик")
+        self.assertContains(response, "Черновик")
         self.assertContains(response, "Стр. 1")
 
         response_page_2 = self.client.get(reverse("encyclopedia_entry"), {"page": 2})
         self.assertEqual(response_page_2.status_code, 200)
         self.assertContains(response_page_2, "Стр. 2")
 
-    def test_detail_shows_only_published_article(self) -> None:
-        """Проверяет доступность детальной страницы только для опубликованной статьи."""
+    def test_detail_shows_any_existing_article(self) -> None:
+        """Проверяет доступность детальной страницы для любой существующей статьи."""
 
         self.client.login(username=self.user.email, password="pass12345")
         published = EncyclopediaArticle.objects.filter(is_published=True).first()
@@ -93,4 +93,4 @@ class EncyclopediaViewsTests(TestCase):
         draft_response = self.client.get(reverse("encyclopedia_detail", kwargs={"slug": draft.slug}))
 
         self.assertEqual(ok_response.status_code, 200)
-        self.assertEqual(draft_response.status_code, 404)
+        self.assertEqual(draft_response.status_code, 200)

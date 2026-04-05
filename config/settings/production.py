@@ -12,10 +12,10 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
     raise ValueError("Для production обязательно задана переменная DJANGO_SECRET_KEY.")
 
-AI_BASE_URL = os.getenv("AI_BASE_URL", "")
-AI_API_KEY = os.getenv("AI_API_KEY", "")
-AI_MODEL = os.getenv("AI_MODEL", "")
-AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", "60"))
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", os.getenv("AI_BASE_URL", ""))
+LLM_API_KEY = os.getenv("LLM_API_KEY", os.getenv("AI_API_KEY", ""))
+AI_MODEL_NAME = os.getenv("AI_MODEL_NAME", os.getenv("LLM_MODEL_NAME", os.getenv("AI_MODEL", "")))
+LLM_TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", os.getenv("AI_TIMEOUT_SECONDS", "60")))
 
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")
