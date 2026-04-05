@@ -95,8 +95,9 @@ def parse_analysis_response(raw_response_text: str, rating_min: int, rating_max:
     - отсутствуют.
     """
 
+    normalized_raw = normalize_analysis_json_text(raw_response_text)
     try:
-        payload = json.loads(raw_response_text)
+        payload = json.loads(normalized_raw)
     except json.JSONDecodeError as exc:
         return ParsedAnalysisResponse(
             status=AnalysisValidationStatus.INVALID_JSON,
@@ -142,6 +143,41 @@ def parse_analysis_response(raw_response_text: str, rating_min: int, rating_max:
         normalized_json=normalized,
         error_message="",
     )
+
+
+def normalize_analysis_json_text(raw_response_text: str) -> str:
+    """Нормализует сырой ответ LLM к JSON-строке для парсинга.
+
+    Контекст использования:
+    - применяется перед `json.loads` в аналитическом парсере;
+    - повышает устойчивость к форматам вида ```json ... ``` и к тексту вокруг JSON.
+
+    Параметры:
+    - `raw_response_text`: исходный текст ответа LLM.
+
+    Возвращает:
+    - строку, максимально близкую к JSON-объекту.
+
+    Исключения и особые случаи:
+    - если не удаётся выделить объект, возвращает исходную строку.
+
+    Побочные эффекты:
+    - отсутствуют.
+    """
+
+    raw = (raw_response_text or "").strip()
+    if not raw:
+        return raw
+
+    if raw.startswith("```"):
+        lines = [line for line in raw.splitlines() if not line.strip().startswith("```")]
+        raw = "\n".join(lines).strip()
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return raw[start : end + 1]
+    return raw
 
 
 def log_audit_event(

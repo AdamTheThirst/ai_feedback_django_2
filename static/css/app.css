@@ -22,6 +22,16 @@
     --bs-btn-active-border-color: #c84200;
 }
 
+.btn-outline-warning {
+    --bs-btn-color: #ff5400;
+    --bs-btn-border-color: #ff5400;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #ff5400;
+    --bs-btn-hover-border-color: #ff5400;
+    --bs-btn-active-bg: #e24b00;
+    --bs-btn-active-border-color: #e24b00;
+}
+
 .btn-outline-primary {
     --bs-btn-color: #004cde;
     --bs-btn-border-color: #004cde;
@@ -71,6 +81,10 @@
     margin-bottom: 10px;
 }
 
+.conditions-bubble {
+    border: 1px solid #ff5400;
+}
+
 .messages-scroll-area {
     max-height: 50vh;
     overflow-y: auto;
@@ -112,4 +126,45 @@
     bottom: 0;
     background: #fff;
     padding-top: 10px;
+}
+
+.analysis-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.analysis-overlay-card {
+    width: min(92vw, 420px);
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.analysis-overlay-text {
+    margin-top: 12px;
+    font-size: 0.95rem;
+}
+
+.analysis-spinner {
+    width: 30px;
+    height: 30px;
+    margin: 0 auto;
+    border: 3px solid #cfe0ff;
+    border-top-color: #004cde;
+    border-radius: 50%;
+    animation: analysis-spin 0.8s linear infinite;
+}
+
+@keyframes analysis-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }

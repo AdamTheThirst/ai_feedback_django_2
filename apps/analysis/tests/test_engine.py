@@ -187,3 +187,34 @@ class AnalysisEngineTests(TestCase):
 
         self.assertIsNone(result)
         self.assertEqual(AnalysisRun.objects.filter(dialog=self.dialog).count(), 0)
+
+    def test_markdown_wrapped_json_is_parsed_without_fallback(self) -> None:
+        """Проверяет успешный разбор JSON, обёрнутого в markdown-блок.
+
+        Контекст использования:
+        - защищает от типового ответа LLM в формате ```json ... ```.
+
+        Параметры:
+        - отсутствуют.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - отсутствуют.
+
+        Побочные эффекты:
+        - создаёт корректные `AnalysisResult` без fallback-статуса.
+        """
+
+        markdown_json = '```json\\n{\"rating\": 4, \"text\": \"Нормально\"}\\n```'
+        with patch("apps.analysis.services.engine.generate_analysis_reply", return_value=markdown_json):
+            analysis_run = run_analysis_for_dialog(self.dialog)
+
+        self.assertIsNotNone(analysis_run)
+        assert analysis_run is not None
+        first_result = AnalysisResult.objects.filter(analysis_run=analysis_run).order_by("sort_order_snapshot").first()
+        self.assertIsNotNone(first_result)
+        assert first_result is not None
+        self.assertEqual(first_result.validation_status, AnalysisValidationStatus.VALID)
+        self.assertEqual(first_result.rating, 4)

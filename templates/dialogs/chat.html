@@ -11,12 +11,17 @@
                 <div class="small text-muted">{{ object.game.title }} | {{ object.scenario.title }}</div>
                 <div class="chat-timer" id="chat-timer">10:00</div>
             </div>
-            <button class="btn btn-warning w-100 mb-2" id="dialog-finish-button" type="button" {% if not can_finish %}disabled{% endif %}>Дай обратную связь</button>
-            <div class="conditions-panel">{{ object.conditions_snapshot_text }}</div>
+            <button class="btn btn-outline-warning w-100 mb-2" id="dialog-finish-button" type="button" {% if not can_finish %}disabled{% endif %}>Дай обратную связь</button>
         </header>
 
         <div class="messages-scroll-area" id="messages-scroll-area">
             <div id="message-list">
+                <div class="message-row message-assistant">
+                    <div class="message-bubble conditions-bubble">
+                        <strong>Условия сценария:</strong><br>
+                        {{ object.conditions_snapshot_text }}
+                    </div>
+                </div>
                 {% for message in messages %}
                     <div class="message-row {% if message.role == message_role_user %}message-user{% else %}message-assistant{% endif %}">
                         <div class="message-bubble">{{ message.text }}</div>
@@ -37,6 +42,15 @@
             </form>
         </footer>
     </section>
+</div>
+
+<div id="analysis-overlay" class="analysis-overlay d-none" aria-live="polite" aria-hidden="true">
+    <div class="analysis-overlay-card">
+        <div class="analysis-spinner" aria-hidden="true"></div>
+        <div class="analysis-overlay-text">
+            Идёт анализ диалога. Это может занять некоторое время, пожалуйста, подождите.
+        </div>
+    </div>
 </div>
 {% endblock %}
 

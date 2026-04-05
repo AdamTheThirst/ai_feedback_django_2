@@ -14,6 +14,6 @@ urlpatterns = [
     path("", HomeView.as_view(), name="home"),
     path("start/<slug:game_slug>/<slug:scenario_slug>/", ScenarioStartView.as_view(), name="scenario_start"),
     path("encyclopedia/", EncyclopediaListView.as_view(), name="encyclopedia_entry"),
-    path("encyclopedia/<slug:slug>/", EncyclopediaDetailView.as_view(), name="encyclopedia_detail"),
+    path("encyclopedia/<str:slug>/", EncyclopediaDetailView.as_view(), name="encyclopedia_detail"),
     path("cabinet/", cabinet_view, name="cabinet_entry"),
 ]

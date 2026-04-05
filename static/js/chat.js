@@ -97,6 +97,38 @@ function appendLlmStatusMessage(statusText) {
 }
 
 /**
+ * Управляет видимостью overlay окна ожидания анализа.
+ *
+ * Контекст использования:
+ * - включается после клика «Дай обратную связь» на время серверного завершения/анализа.
+ *
+ * Параметры:
+ * - `isVisible`: `true` — показать overlay, `false` — скрыть.
+ *
+ * Возвращает:
+ * - отсутствует.
+ *
+ * Исключения и особые случаи:
+ * - если overlay-элемент не найден, функция ничего не делает.
+ *
+ * Побочные эффекты:
+ * - изменяет классы и `aria-hidden` у `#analysis-overlay`.
+ */
+function setAnalysisOverlayVisible(isVisible) {
+    const overlay = document.getElementById("analysis-overlay");
+    if (!overlay) {
+        return;
+    }
+    if (isVisible) {
+        overlay.classList.remove("d-none");
+        overlay.setAttribute("aria-hidden", "false");
+    } else {
+        overlay.classList.add("d-none");
+        overlay.setAttribute("aria-hidden", "true");
+    }
+}
+
+/**
  * Прокручивает ленту сообщений к последней реплике.
  *
  * Контекст использования:
@@ -270,6 +302,7 @@ async function finishDialog(reason) {
         const payload = await response.json();
         if (!response.ok || !payload.ok) {
             setChatStatusLine(payload.error || "Не удалось завершить диалог.");
+            setAnalysisOverlayVisible(false);
             return false;
         }
         setChatStatusLine("");
@@ -280,6 +313,7 @@ async function finishDialog(reason) {
         return true;
     } catch (error) {
         setChatStatusLine("Ошибка сети при завершении диалога.");
+        setAnalysisOverlayVisible(false);
         return false;
     }
 }
@@ -398,9 +432,11 @@ function initManualFinishButton() {
 
     finishButton.addEventListener("click", async function () {
         finishButton.disabled = true;
+        setAnalysisOverlayVisible(true);
         const finished = await finishDialog("manual_feedback");
         if (!finished) {
             finishButton.disabled = false;
+            setAnalysisOverlayVisible(false);
         }
     });
 }
@@ -464,7 +500,6 @@ function initChatSendForm() {
                 setChatStatusLine(payload.error || "Не удалось отправить сообщение.");
             } else {
                 appendMessage(payload.user_message);
-                appendLlmStatusMessage(payload.llm_status_text);
                 appendMessage(payload.assistant_message);
                 input.value = "";
                 setChatStatusLine("");
