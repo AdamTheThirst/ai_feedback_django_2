@@ -118,6 +118,8 @@ def parse_analysis_response(raw_response_text: str, rating_min: int, rating_max:
 
     rating = payload.get("rating")
     text = payload.get("text")
+    if isinstance(rating, str) and rating.strip().lstrip("-").isdigit():
+        rating = int(rating.strip())
     if not isinstance(rating, int) or not isinstance(text, str) or not text.strip():
         return ParsedAnalysisResponse(
             status=AnalysisValidationStatus.INVALID_SCHEMA,

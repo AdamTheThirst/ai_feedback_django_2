@@ -218,3 +218,34 @@ class AnalysisEngineTests(TestCase):
         assert first_result is not None
         self.assertEqual(first_result.validation_status, AnalysisValidationStatus.VALID)
         self.assertEqual(first_result.rating, 4)
+
+    def test_string_rating_is_cast_to_int(self) -> None:
+        """Проверяет, что строковый rating в JSON приводится к целому числу.
+
+        Контекст использования:
+        - страхует от ответов LLM, где `rating` возвращается строкой.
+
+        Параметры:
+        - отсутствуют.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - отсутствуют.
+
+        Побочные эффекты:
+        - создаёт `AnalysisResult` со статусом `VALID`.
+        """
+
+        json_with_string_rating = '{"rating": "3", "text": "Комментарий"}'
+        with patch("apps.analysis.services.engine.generate_analysis_reply", return_value=json_with_string_rating):
+            analysis_run = run_analysis_for_dialog(self.dialog)
+
+        self.assertIsNotNone(analysis_run)
+        assert analysis_run is not None
+        first_result = AnalysisResult.objects.filter(analysis_run=analysis_run).order_by("sort_order_snapshot").first()
+        self.assertIsNotNone(first_result)
+        assert first_result is not None
+        self.assertEqual(first_result.validation_status, AnalysisValidationStatus.VALID)
+        self.assertEqual(first_result.rating, 3)

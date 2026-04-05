@@ -13,7 +13,7 @@
             <h1 class="h5 mb-2">Результаты сценария</h1>
             <div class="text-muted small mb-1">{{ dialog.game.title }} | {{ dialog.scenario.title }}</div>
             <div class="display-6">{{ total_score }} из {{ max_score }}</div>
-            {% if analysis_run %}
+            {% if analysis_run and request.user.is_staff %}
                 <div class="small text-muted mt-2">Статус запуска анализа: {{ analysis_run.get_status_display }}</div>
                 <div class="small text-muted">Попыток LLM: {{ analysis_run.llm_attempt_count }}</div>
             {% endif %}
@@ -24,7 +24,7 @@
         <div class="alert alert-secondary">{{ empty_state_message }}</div>
     {% endif %}
 
-    {% if has_partial_issues %}
+    {% if has_partial_issues and request.user.is_staff %}
         <div class="alert alert-warning">
             Часть критериев обработана с fallback-данными. Результат может быть неполным.
         </div>
@@ -38,18 +38,20 @@
                     <div class="small text-muted mb-2">{{ card.header_snapshot_text }}</div>
                     <div class="fw-semibold mb-2">{{ card.rating }} / {{ card.rating_max }}</div>
                     <p class="mb-0">{{ card.analysis_text }}</p>
-                    <hr>
-                    <div class="small">
-                        Взаимодействие с LLM:
-                        {% if card.raw_llm_response_text %}
-                            <strong>Да</strong>
-                        {% else %}
-                            <strong>Нет</strong>
-                        {% endif %}
-                    </div>
-                    <div class="small text-muted">Статус валидации: {{ card.get_validation_status_display }}</div>
-                    <div class="small mt-2">Сырой ответ LLM:</div>
-                    <pre class="bg-light p-2 rounded small mt-1 mb-0" style="white-space: pre-wrap;">{% if card.raw_llm_response_text %}{{ card.raw_llm_response_text }}{% else %}—{% endif %}</pre>
+                    {% if request.user.is_staff %}
+                        <hr>
+                        <div class="small">
+                            Взаимодействие с LLM:
+                            {% if card.raw_llm_response_text %}
+                                <strong>Да</strong>
+                            {% else %}
+                                <strong>Нет</strong>
+                            {% endif %}
+                        </div>
+                        <div class="small text-muted">Статус валидации: {{ card.get_validation_status_display }}</div>
+                        <div class="small mt-2">Сырой ответ LLM:</div>
+                        <pre class="bg-light p-2 rounded small mt-1 mb-0" style="white-space: pre-wrap;">{% if card.raw_llm_response_text %}{{ card.raw_llm_response_text }}{% else %}—{% endif %}</pre>
+                    {% endif %}
                 </div>
             </article>
         {% empty %}
