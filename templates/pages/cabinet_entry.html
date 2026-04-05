@@ -100,7 +100,6 @@
                                 <td>{{ item.session.get_status_display }}</td>
                                 <td>
                                     <a class="btn btn-sm btn-outline-primary" href="{% url 'dialogs:results' public_id=item.session.public_id %}">Результат</a>
-                                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'dialogs:export_pdf' public_id=item.session.public_id %}">PDF</a>
                                 </td>
                             </tr>
                         {% empty %}

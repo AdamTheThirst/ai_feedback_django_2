@@ -438,7 +438,7 @@ class EncyclopediaArticle(TimestampedModel):
     title = models.CharField(max_length=128, verbose_name="Заголовок")
     slug = models.SlugField(max_length=180, unique=True, verbose_name="Slug")
     body = models.TextField(max_length=5000, verbose_name="Текст статьи")
-    summary = models.CharField(max_length=255, verbose_name="Краткое описание")
+    summary = models.CharField(max_length=255, verbose_name="Краткое описание", blank=True)
     is_published = models.BooleanField(default=False, verbose_name="Опубликовано")
     created_by = models.ForeignKey(
         "accounts.User",
@@ -491,9 +491,11 @@ class EncyclopediaArticle(TimestampedModel):
         if strip_tags(self.summary or "") != (self.summary or ""):
             raise ValidationError({"summary": "Краткое описание не должно содержать HTML-теги."})
 
-        summary_len = len((self.summary or "").strip())
-        if summary_len < 50 or summary_len > 255:
-            raise ValidationError({"summary": "Краткое описание должно быть длиной от 50 до 255 символов."})
+        summary_text = (self.summary or "").strip()
+        if summary_text:
+            summary_len = len(summary_text)
+            if summary_len < 50 or summary_len > 255:
+                raise ValidationError({"summary": "Краткое описание должно быть длиной от 50 до 255 символов."})
 
     def save(self, *args, **kwargs) -> None:
         """Сохраняет статью и формирует slug при первом создании записи.

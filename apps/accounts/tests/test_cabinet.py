@@ -77,14 +77,13 @@ class CabinetViewTests(TestCase):
         )
 
     def test_cabinet_page_is_available_and_shows_history(self) -> None:
-        """Проверяет отображение личного кабинета и ссылок на результат/PDF в истории."""
+        """Проверяет отображение личного кабинета и ссылки на результат в истории."""
 
         response = self.client.get(reverse("cabinet_entry"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Личный кабинет")
         self.assertContains(response, "Результат")
-        self.assertContains(response, "PDF")
 
     def test_cabinet_updates_nickname(self) -> None:
         """Проверяет обновление nickname через форму профиля в кабинете."""

@@ -11,8 +11,15 @@
     <div class="flex-grow-1 py-3">
         <div class="list-group">
             {% for article in articles %}
-                <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
-                    <div>{{ article.title }}</div>
+                <div class="list-group-item d-flex justify-content-between align-items-start gap-3">
+                    <div>
+                        <div class="fw-semibold">{{ article.title }}</div>
+                        {% if article.summary %}
+                            <div class="small text-muted mt-1">{{ article.summary }}</div>
+                        {% else %}
+                            <div class="small text-muted mt-1">Краткое описание отсутствует.</div>
+                        {% endif %}
+                    </div>
                     <a class="btn btn-sm btn-primary" href="{% url 'encyclopedia_detail' slug=article.slug %}">Читать</a>
                 </div>
             {% empty %}

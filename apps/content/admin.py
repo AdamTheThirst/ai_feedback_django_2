@@ -135,7 +135,7 @@ class EncyclopediaArticleAdmin(admin.ModelAdmin):
     - административный интерфейс модели `EncyclopediaArticle`.
 
     Исключения и особые случаи:
-    - при отсутствии summary на сохранении поле генерируется автоматически.
+    - поле summary необязательно и может быть пустым.
 
     Побочные эффекты:
     - при генерации summary вызывает LLM-адаптер и сохраняет обновлённые данные статей.
@@ -151,7 +151,7 @@ class EncyclopediaArticleAdmin(admin.ModelAdmin):
             "Основные данные",
             {
                 "fields": ("title", "slug", "body", "summary", "is_published"),
-                "description": "Текст статьи ограничен 5000 символами. Краткое описание (summary) генерируется через LLM.",
+                "description": "Текст статьи ограничен 5000 символами. Краткое описание опционально; при необходимости можно сгенерировать через action.",
             },
         ),
         ("Аудит", {"fields": ("created_by", "updated_by", "created_at", "updated_at")}),
@@ -173,7 +173,7 @@ class EncyclopediaArticleAdmin(admin.ModelAdmin):
         - ничего не возвращает.
 
         Исключения и особые случаи:
-        - при пустом summary генерирует его автоматически на основании title/body.
+        - отсутствуют.
 
         Побочные эффекты:
         - записывает в БД `created_by`, `updated_by` и, при необходимости, `summary`.
@@ -182,8 +182,6 @@ class EncyclopediaArticleAdmin(admin.ModelAdmin):
         if not obj.created_by_id:
             obj.created_by = request.user
         obj.updated_by = request.user
-        if not (obj.summary or "").strip():
-            obj.summary = build_article_summary(title=obj.title, body=obj.body)
         super().save_model(request, obj, form, change)
 
     @admin.action(description="Перегенерировать summary через LLM")

@@ -20,6 +20,12 @@ class EncyclopediaArticleModelTests(TestCase):
         self.assertTrue(a2.slug)
         self.assertNotEqual(a1.slug, a2.slug)
 
+    def test_summary_can_be_empty(self) -> None:
+        """Проверяет, что краткое описание статьи может быть пустым."""
+
+        article = EncyclopediaArticle.objects.create(title="Без summary", body="Текст", summary="")
+        self.assertEqual(article.summary, "")
+
 
 class EncyclopediaViewsTests(TestCase):
     """Проверяет публичный список и детальную страницу энциклопедии для авторизованных пользователей."""
@@ -68,22 +74,22 @@ class EncyclopediaViewsTests(TestCase):
         response = self.client.get(reverse("encyclopedia_entry"))
         self.assertEqual(response.status_code, 302)
 
-    def test_list_shows_articles_from_admin_with_pagination(self) -> None:
-        """Проверяет, что пользовательский список показывает статьи из админки и пагинацию."""
+    def test_list_shows_only_published_with_pagination(self) -> None:
+        """Проверяет публикационный фильтр и пагинацию по 10 статей."""
 
         self.client.login(username=self.user.email, password="pass12345")
         response = self.client.get(reverse("encyclopedia_entry"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Черновик")
+        self.assertNotContains(response, "Черновик")
         self.assertContains(response, "Стр. 1")
 
         response_page_2 = self.client.get(reverse("encyclopedia_entry"), {"page": 2})
         self.assertEqual(response_page_2.status_code, 200)
         self.assertContains(response_page_2, "Стр. 2")
 
-    def test_detail_shows_any_existing_article(self) -> None:
-        """Проверяет доступность детальной страницы для любой существующей статьи."""
+    def test_detail_shows_only_published_article(self) -> None:
+        """Проверяет доступность детальной страницы только для опубликованной статьи."""
 
         self.client.login(username=self.user.email, password="pass12345")
         published = EncyclopediaArticle.objects.filter(is_published=True).first()
@@ -93,4 +99,35 @@ class EncyclopediaViewsTests(TestCase):
         draft_response = self.client.get(reverse("encyclopedia_detail", kwargs={"slug": draft.slug}))
 
         self.assertEqual(ok_response.status_code, 200)
-        self.assertEqual(draft_response.status_code, 200)
+        self.assertEqual(draft_response.status_code, 404)
+
+    def test_detail_route_supports_unicode_slug(self) -> None:
+        """Проверяет, что детальная страница открывается для кириллического slug.
+
+        Контекст использования:
+        - страхует от регрессии `NoReverseMatch` при unicode slug в URL.
+
+        Параметры:
+        - отсутствуют.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - отсутствуют.
+
+        Побочные эффекты:
+        - отсутствуют.
+        """
+
+        self.client.login(username=self.user.email, password="pass12345")
+        article = EncyclopediaArticle.objects.create(
+            title="Тест 1",
+            slug="тест-1",
+            body="Текст статьи",
+            summary="Краткое описание в нужной длине для отображения пользователю в списке энциклопедии.",
+            is_published=True,
+        )
+
+        response = self.client.get(reverse("encyclopedia_detail", kwargs={"slug": article.slug}))
+        self.assertEqual(response.status_code, 200)

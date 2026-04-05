@@ -11,7 +11,7 @@ from apps.content.services.encyclopedia import encyclopedia_title_sort_key
 
 
 class EncyclopediaListView(LoginRequiredMixin, View):
-    """Показывает список статей энциклопедии с пагинацией.
+    """Показывает список опубликованных статей энциклопедии с пагинацией.
 
     Контекст использования:
     - пользовательский экран `/encyclopedia/` после авторизации;
@@ -24,7 +24,7 @@ class EncyclopediaListView(LoginRequiredMixin, View):
     - HTML-страницу `encyclopedia/list.html`.
 
     Исключения и особые случаи:
-    - в текущей версии отображаются все статьи, чтобы пользователь видел контент из админки сразу.
+    - в пользовательском разделе отображаются только опубликованные статьи.
 
     Побочные эффекты:
     - отсутствуют.
@@ -51,7 +51,7 @@ class EncyclopediaListView(LoginRequiredMixin, View):
         - отсутствуют.
         """
 
-        articles = list(EncyclopediaArticle.objects.order_by("id"))
+        articles = list(EncyclopediaArticle.objects.filter(is_published=True).order_by("id"))
         articles.sort(key=encyclopedia_title_sort_key)
 
         paginator = Paginator(articles, 10)
@@ -68,7 +68,7 @@ class EncyclopediaListView(LoginRequiredMixin, View):
 
 
 class EncyclopediaDetailView(LoginRequiredMixin, View):
-    """Показывает детальную страницу статьи энциклопедии.
+    """Показывает детальную страницу опубликованной статьи энциклопедии.
 
     Контекст использования:
     - открывается по маршруту `/encyclopedia/<slug>/`.
@@ -80,7 +80,7 @@ class EncyclopediaDetailView(LoginRequiredMixin, View):
     - HTML-страницу `encyclopedia/detail.html`.
 
     Исключения и особые случаи:
-    - если статья не существует, возвращается 404.
+    - неопубликованные статьи недоступны пользователю.
 
     Побочные эффекты:
     - отсутствуют.
@@ -89,7 +89,7 @@ class EncyclopediaDetailView(LoginRequiredMixin, View):
     template_name = "encyclopedia/detail.html"
 
     def get(self, request: HttpRequest, slug: str) -> HttpResponse:
-        """Рендерит страницу одной статьи по её slug.
+        """Рендерит страницу одной опубликованной статьи по её slug.
 
         Контекст использования:
         - endpoint детальной страницы энциклопедии.
@@ -102,11 +102,11 @@ class EncyclopediaDetailView(LoginRequiredMixin, View):
         - HTML с заголовком и содержимым статьи.
 
         Исключения и особые случаи:
-        - для несуществующей статьи возвращается 404.
+        - для неопубликованной или несуществующей статьи возвращается 404.
 
         Побочные эффекты:
         - отсутствуют.
         """
 
-        article = get_object_or_404(EncyclopediaArticle, slug=slug)
+        article = get_object_or_404(EncyclopediaArticle, slug=slug, is_published=True)
         return render(request, self.template_name, {"article": article})
