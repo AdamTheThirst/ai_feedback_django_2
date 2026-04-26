@@ -1,5 +1,7 @@
 """Представления модуля dialogs для lifecycle, таймера и чата V1."""
 
+import traceback
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -8,7 +10,8 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView
 
-from apps.core.enums import DialogEndedReason, DialogMessageRole, DialogStatus
+from apps.auditlog.models import AuditLogEntry
+from apps.core.enums import AuditLogLevel, DialogEndedReason, DialogMessageRole, DialogStatus
 from apps.dialogs.models import DialogSession
 from apps.dialogs.services.chat import DialogSendMessageError, send_user_message
 from apps.dialogs.services.lifecycle import (
@@ -17,6 +20,59 @@ from apps.dialogs.services.lifecycle import (
     get_dialog_seconds_remaining,
     maybe_finish_dialog_by_timeout,
 )
+
+
+def log_dialog_api_error(
+    *,
+    request: HttpRequest,
+    dialog: DialogSession,
+    event_type: str,
+    message: str,
+    error: Exception,
+    context_json: dict | None = None,
+) -> AuditLogEntry:
+    """Сохраняет непредвиденную ошибку API диалога в audit log.
+
+    Контекст использования:
+    - вызывается в `except Exception` блоках endpoint-ов dialogs;
+    - даёт администратору видимость причин клиентских сообщений «Ошибка сети».
+
+    Параметры:
+    - `request`: исходный HTTP-запрос пользователя;
+    - `dialog`: диалог, в контексте которого произошла ошибка;
+    - `event_type`: машинный тип события;
+    - `message`: краткий текст события;
+    - `error`: исключение, которое нужно зафиксировать;
+    - `context_json`: дополнительный структурированный контекст.
+
+    Возвращает:
+    - созданную запись `AuditLogEntry`.
+
+    Исключения и особые случаи:
+    - при `context_json=None` сохраняется только базовый контекст.
+
+    Побочные эффекты:
+    - создаёт запись в БД audit log.
+    """
+
+    context = {
+        "path": request.path,
+        "method": request.method,
+        "dialog_public_id": str(dialog.public_id),
+        "error_class": error.__class__.__name__,
+    }
+    if context_json:
+        context.update(context_json)
+
+    return AuditLogEntry.objects.create(
+        level=AuditLogLevel.ERROR,
+        event_type=event_type,
+        message=message,
+        actor_user=request.user if request.user.is_authenticated else None,
+        dialog=dialog,
+        context_json=context,
+        traceback_text=traceback.format_exc(),
+    )
 
 
 class DialogChatView(LoginRequiredMixin, DetailView):
@@ -149,6 +205,15 @@ class DialogSendMessageApiView(LoginRequiredMixin, View):
             return JsonResponse({"ok": True, **payload})
         except DialogSendMessageError as exc:
             return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+        except Exception as exc:
+            log_dialog_api_error(
+                request=request,
+                dialog=dialog,
+                event_type="dialogs.send_message.unhandled_error",
+                message="Непредвиденная ошибка при отправке сообщения в диалоге.",
+                error=exc,
+            )
+            return JsonResponse({"ok": False, "error": "Внутренняя ошибка сервера при отправке сообщения."}, status=500)
 
 
 class DialogFinishApiView(LoginRequiredMixin, View):
@@ -197,6 +262,16 @@ class DialogFinishApiView(LoginRequiredMixin, View):
             finished_dialog = finish_dialog(dialog=dialog, reason=reason)
         except DialogFinishError as exc:
             return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+        except Exception as exc:
+            log_dialog_api_error(
+                request=request,
+                dialog=dialog,
+                event_type="dialogs.finish.unhandled_error",
+                message="Непредвиденная ошибка при завершении диалога.",
+                error=exc,
+                context_json={"finish_reason": reason},
+            )
+            return JsonResponse({"ok": False, "error": "Внутренняя ошибка сервера при завершении диалога."}, status=500)
 
         return JsonResponse(
             {
@@ -271,16 +346,26 @@ class DialogPageLeaveApiView(LoginRequiredMixin, View):
         """
 
         dialog = get_object_or_404(DialogSession, public_id=public_id, user=request.user)
-        dialog.client_aborted_at = timezone.now()
-        dialog.save(update_fields=["client_aborted_at", "updated_at"])
-        finished_dialog = finish_dialog(dialog=dialog, reason=DialogEndedReason.PAGE_LEAVE)
-        return JsonResponse(
-            {
-                "ok": True,
-                "dialog_status": finished_dialog.status,
-                "ended_reason": finished_dialog.ended_reason,
-            }
-        )
+        try:
+            dialog.client_aborted_at = timezone.now()
+            dialog.save(update_fields=["client_aborted_at", "updated_at"])
+            finished_dialog = finish_dialog(dialog=dialog, reason=DialogEndedReason.PAGE_LEAVE)
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "dialog_status": finished_dialog.status,
+                    "ended_reason": finished_dialog.ended_reason,
+                }
+            )
+        except Exception as exc:
+            log_dialog_api_error(
+                request=request,
+                dialog=dialog,
+                event_type="dialogs.page_leave.unhandled_error",
+                message="Непредвиденная ошибка при фиксации ухода со страницы диалога.",
+                error=exc,
+            )
+            return JsonResponse({"ok": False, "error": "Внутренняя ошибка сервера при фиксации page_leave."}, status=500)
 
 
 class DialogPlaceholderRedirectView(LoginRequiredMixin, View):

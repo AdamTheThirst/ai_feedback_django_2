@@ -1,12 +1,14 @@
 """Тесты JSON-endpoint-ов завершения сессии и таймерного поведения."""
 
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import User
+from apps.auditlog.models import AuditLogEntry
 from apps.content.models import Game, Scenario, ScenarioPrompt
 from apps.core.enums import DialogEndedReason, DialogMessageRole, DialogStatus
 from apps.dialogs.models import DialogMessage, DialogSession
@@ -204,3 +206,36 @@ class DialogFinishApiTests(TestCase):
         self.dialog.refresh_from_db()
         self.assertEqual(self.dialog.status, DialogStatus.ANALYSIS_SKIPPED)
         self.assertEqual(self.dialog.ended_reason, DialogEndedReason.NO_USER_MESSAGES)
+
+    def test_unhandled_finish_error_is_logged_and_returns_500(self) -> None:
+        """Проверяет логирование и JSON-ответ 500 при непредвиденной ошибке finish API.
+
+        Контекст использования:
+        - подтверждает диагностируемость кейсов, когда клиент видит сетевую/серверную ошибку.
+
+        Параметры:
+        - отсутствуют.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - отсутствуют.
+
+        Побочные эффекты:
+        - создаёт запись `AuditLogEntry` с event_type `dialogs.finish.unhandled_error`.
+        """
+
+        with patch("apps.dialogs.views.finish_dialog", side_effect=RuntimeError("boom")):
+            response = self.client.post(
+                reverse("dialogs:finish", kwargs={"public_id": self.dialog.public_id}),
+                data={"reason": DialogEndedReason.MANUAL_FEEDBACK},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertTrue(
+            AuditLogEntry.objects.filter(
+                event_type="dialogs.finish.unhandled_error",
+                dialog=self.dialog,
+            ).exists()
+        )

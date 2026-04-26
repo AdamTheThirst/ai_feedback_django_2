@@ -141,6 +141,45 @@ function getCsrfToken() {
 }
 
 /**
+ * Пытается безопасно извлечь JSON из HTTP-ответа.
+ *
+ * Контекст использования:
+ * - применяется в API-запросах чата и завершения диалога;
+ * - защищает клиент от падения при HTML-ошибках (например, 403/500).
+ *
+ * Параметры:
+ * - `response`: объект `Response` из `fetch`.
+ *
+ * Возвращает:
+ * - объект с полями:
+ *   - `ok`: удалось ли разобрать JSON;
+ *   - `payload`: распарсенный JSON или `null`;
+ *   - `rawText`: сырой текст ответа.
+ *
+ * Исключения и особые случаи:
+ * - при не-JSON контенте вернёт `ok=false` и текст ответа.
+ *
+ * Побочные эффекты:
+ * - отсутствуют.
+ */
+async function safeReadJson(response) {
+    const rawText = await response.text();
+    try {
+        return {
+            ok: true,
+            payload: JSON.parse(rawText),
+            rawText: rawText
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            payload: null,
+            rawText: rawText
+        };
+    }
+}
+
+/**
  * Отображает нейтральное статусное сообщение внизу окна чата.
  *
  * Контекст использования:
@@ -263,9 +302,15 @@ async function finishDialog(reason) {
                 "X-Requested-With": "XMLHttpRequest"
             }
         });
-        const payload = await response.json();
+        const parsed = await safeReadJson(response);
+        if (!parsed.ok) {
+            setChatStatusLine(`Сервер вернул некорректный ответ (${response.status}). Проверьте логи.`);
+            setAnalysisOverlayVisible(false);
+            return false;
+        }
+        const payload = parsed.payload;
         if (!response.ok || !payload.ok) {
-            setChatStatusLine(payload.error || "Не удалось завершить диалог.");
+            setChatStatusLine(payload.error || `Не удалось завершить диалог (HTTP ${response.status}).`);
             setAnalysisOverlayVisible(false);
             return false;
         }
@@ -463,11 +508,13 @@ function initChatSendForm() {
                     "X-Requested-With": "XMLHttpRequest"
                 }
             });
-            const payload = await response.json();
-            if (!response.ok || !payload.ok) {
-                setChatStatusLine(payload.error || "Не удалось отправить сообщение.");
+            const parsed = await safeReadJson(response);
+            if (!parsed.ok) {
+                setChatStatusLine(`Сервер вернул некорректный ответ (${response.status}). Проверьте логи.`);
+            } else if (!response.ok || !parsed.payload.ok) {
+                setChatStatusLine(parsed.payload.error || `Не удалось отправить сообщение (HTTP ${response.status}).`);
             } else {
-                appendMessage(payload.assistant_message);
+                appendMessage(parsed.payload.assistant_message);
                 setChatStatusLine("");
                 scrollToBottom();
             }
