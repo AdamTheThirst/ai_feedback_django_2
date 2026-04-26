@@ -11,7 +11,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView
 
 from apps.auditlog.models import AuditLogEntry
+from apps.content.models import AnalysisPrompt
 from apps.core.enums import AuditLogLevel, DialogEndedReason, DialogMessageRole, DialogStatus
+from apps.core.enums import AnalysisRunStatus
 from apps.dialogs.models import DialogSession
 from apps.dialogs.services.chat import DialogSendMessageError, send_user_message
 from apps.dialogs.services.lifecycle import (
@@ -204,6 +206,14 @@ class DialogSendMessageApiView(LoginRequiredMixin, View):
             payload = send_user_message(dialog=dialog, text=text, client_message_id=client_message_id)
             return JsonResponse({"ok": True, **payload})
         except DialogSendMessageError as exc:
+            AuditLogEntry.objects.create(
+                level=AuditLogLevel.WARNING,
+                event_type="dialogs.send_message.business_error",
+                message=str(exc),
+                actor_user=request.user,
+                dialog=dialog,
+                context_json={"path": request.path, "method": request.method},
+            )
             return JsonResponse({"ok": False, "error": str(exc)}, status=400)
         except Exception as exc:
             log_dialog_api_error(
@@ -261,6 +271,14 @@ class DialogFinishApiView(LoginRequiredMixin, View):
         try:
             finished_dialog = finish_dialog(dialog=dialog, reason=reason)
         except DialogFinishError as exc:
+            AuditLogEntry.objects.create(
+                level=AuditLogLevel.WARNING,
+                event_type="dialogs.finish.business_error",
+                message=str(exc),
+                actor_user=request.user,
+                dialog=dialog,
+                context_json={"path": request.path, "method": request.method, "finish_reason": reason},
+            )
             return JsonResponse({"ok": False, "error": str(exc)}, status=400)
         except Exception as exc:
             log_dialog_api_error(
@@ -366,6 +384,63 @@ class DialogPageLeaveApiView(LoginRequiredMixin, View):
                 error=exc,
             )
             return JsonResponse({"ok": False, "error": "Внутренняя ошибка сервера при фиксации page_leave."}, status=500)
+
+
+class DialogAnalysisProgressApiView(LoginRequiredMixin, View):
+    """Возвращает прогресс выполнения аналитики в формате `m из n`.
+
+    Контекст использования:
+    - вызывается клиентским polling во время ожидания результата после нажатия «Дай обратную связь»;
+    - позволяет показывать пользователю динамический статус обработки промтов.
+
+    Параметры:
+    - принимает `public_id` диалога текущего пользователя.
+
+    Возвращает:
+    - JSON с полями `completed_count`, `total_count`, `is_finished`, `status`.
+
+    Исключения и особые случаи:
+    - если `analysis_run` ещё не создан, возвращается прогресс `0 из n`.
+
+    Побочные эффекты:
+    - отсутствуют.
+    """
+
+    def get(self, request: HttpRequest, public_id) -> JsonResponse:
+        """Отдаёт текущее состояние анализа для одного диалога.
+
+        Контекст использования:
+        - endpoint для отображения прогресса во время долгого аналитического запроса.
+
+        Параметры:
+        - `request`: GET-запрос текущего пользователя;
+        - `public_id`: UUID диалога.
+
+        Возвращает:
+        - JSON-объект с количественным прогрессом и финальным статусом.
+
+        Исключения и особые случаи:
+        - если активных промтов нет, общее количество будет `0`.
+
+        Побочные эффекты:
+        - отсутствуют.
+        """
+
+        dialog = get_object_or_404(DialogSession, public_id=public_id, user=request.user)
+        total_count = AnalysisPrompt.objects.filter(game=dialog.game, is_active=True, is_archived=False).count()
+        analysis_run = getattr(dialog, "analysis_run", None)
+        completed_count = analysis_run.llm_attempt_count if analysis_run else 0
+        status = analysis_run.status if analysis_run else AnalysisRunStatus.PENDING
+        is_finished = status in {AnalysisRunStatus.COMPLETED, AnalysisRunStatus.FAILED, AnalysisRunStatus.SKIPPED}
+        return JsonResponse(
+            {
+                "ok": True,
+                "completed_count": completed_count,
+                "total_count": total_count,
+                "status": status,
+                "is_finished": is_finished,
+            }
+        )
 
 
 class DialogPlaceholderRedirectView(LoginRequiredMixin, View):

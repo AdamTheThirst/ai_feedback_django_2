@@ -3,7 +3,6 @@
 import traceback
 from dataclasses import dataclass
 
-from django.db import transaction
 from django.utils import timezone
 
 from apps.analysis.models import AnalysisResult, AnalysisRun
@@ -156,7 +155,6 @@ def log_audit_event(
     )
 
 
-@transaction.atomic
 def run_analysis_for_dialog(dialog: DialogSession) -> AnalysisRun | None:
     """Запускает анализ завершённого диалога по всем активным `AnalysisPrompt` игры.
 
@@ -255,6 +253,8 @@ def run_analysis_for_dialog(dialog: DialogSession) -> AnalysisRun | None:
                     "llm_attempt_count": 1,
                 },
             )
+            analysis_run.llm_attempt_count = attempts_total
+            analysis_run.save(update_fields=["llm_attempt_count", "updated_at"])
 
         analysis_run.llm_attempt_count = attempts_total
         analysis_run.status = AnalysisRunStatus.COMPLETED

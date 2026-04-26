@@ -50,6 +50,7 @@
         <div class="analysis-overlay-text">
             Идёт анализ диалога. Это может занять некоторое время, пожалуйста, подождите.
         </div>
+        <div id="analysis-progress-text" class="small text-muted mt-2">0 из 0</div>
     </div>
 </div>
 {% endblock %}
@@ -59,6 +60,7 @@
     window.chatConfig = {
         sendUrl: "{% url 'dialogs:send_message' public_id=object.public_id %}",
         finishUrl: "{% url 'dialogs:finish' public_id=object.public_id %}",
+        progressUrl: "{% url 'dialogs:analysis_progress' public_id=object.public_id %}",
         pageLeaveUrl: "{% url 'dialogs:page_leave' public_id=object.public_id %}",
         resultsUrl: "{% url 'dialogs:results' public_id=object.public_id %}",
         csrfToken: "{{ csrf_token }}",

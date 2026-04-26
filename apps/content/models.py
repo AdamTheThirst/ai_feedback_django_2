@@ -280,7 +280,7 @@ class AnalysisPrompt(PublicIdModel, ArchivableModel, OwnedModel, TimestampedMode
     - определяет порядок карточек и границы шкалы баллов.
 
     Параметры:
-    - `game`, `alias`, `title`, `header_text`, `comment_text`, `prompt_text`, `sort_order`, `min_rating`, `max_rating`, `is_active`.
+    - `game`, `alias`, `title`, `header_text`, `comment_text`, `prompt_text`, `sort_order`, `min_rating`, `max_rating`, `max_tokens`, `is_active`.
 
     Возвращает:
     - запись аналитического критерия.
@@ -301,6 +301,7 @@ class AnalysisPrompt(PublicIdModel, ArchivableModel, OwnedModel, TimestampedMode
     sort_order = models.PositiveIntegerField(default=100, verbose_name="Порядок")
     min_rating = models.SmallIntegerField(default=0, verbose_name="Минимальный балл")
     max_rating = models.SmallIntegerField(default=5, verbose_name="Максимальный балл")
+    max_tokens = models.PositiveIntegerField(default=1000, verbose_name="Лимит токенов ответа")
     is_active = models.BooleanField(default=True, verbose_name="Активный")
 
     class Meta:

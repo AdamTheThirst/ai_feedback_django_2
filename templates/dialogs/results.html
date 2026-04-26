@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% load analysis_html %}
 
 {% block title %}Результаты | {{ dialog.game.title }}{% endblock %}
 
@@ -25,7 +26,7 @@
                 <div class="card-body">
                     <h2 class="h6 mb-1">{{ card.title_snapshot }}</h2>
                     <div class="small text-muted mb-2">{{ card.header_snapshot_text }}</div>
-                    <p class="mb-0">{{ card.analysis_text }}</p>
+                    <div class="mb-0">{{ card.analysis_text|render_analysis_html }}</div>
                 </div>
             </article>
         {% empty %}

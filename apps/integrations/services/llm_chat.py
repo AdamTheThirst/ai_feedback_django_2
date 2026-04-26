@@ -109,7 +109,7 @@ def _llm_runtime_config() -> tuple[str, str, str, int]:
     return base_url, api_key, model_name, timeout_seconds
 
 
-def _chat_completion(messages: list[dict[str, str]], temperature: float = 0.3, max_tokens: int = 700) -> tuple[str, str]:
+def _chat_completion(messages: list[dict[str, str]], temperature: float = 0.3, max_tokens: int = 1000) -> tuple[str, str]:
     """Выполняет запрос к OpenAI-compatible `/chat/completions`.
 
     Контекст использования:
@@ -247,11 +247,11 @@ def generate_game_reply(dialog: DialogSession, user_text: str) -> LLMGameReply:
 
 
 def generate_analysis_reply(dialog: DialogSession, analysis_prompt: AnalysisPrompt, transcript: str) -> str:
-    """Запрашивает у LLM аналитический JSON по одному критерию.
+    """Запрашивает у LLM текст аналитики по одному критерию.
 
     Контекст использования:
     - вызывается сервисом аналитики для каждого `AnalysisPrompt`;
-    - на выходе должен быть JSON-объект с полями `rating` и `text`.
+    - на выходе должен быть обычный текст аналитики.
 
     Параметры:
     - `dialog`: анализируемая сессия;
@@ -259,20 +259,19 @@ def generate_analysis_reply(dialog: DialogSession, analysis_prompt: AnalysisProm
     - `transcript`: полный транскрипт диалога.
 
     Возвращает:
-    - строку JSON для дальнейшей валидации в engine.
+    - строку текста для сохранения в карточке анализа.
 
     Исключения и особые случаи:
-    - при ошибке LLM возвращает fallback JSON с минимальной оценкой.
+    - при ошибке LLM возвращает fallback-текст о недоступности аналитики.
 
     Побочные эффекты:
     - выполняет внешний HTTP-вызов LLM.
     """
 
     analysis_instruction = (
-        f"Оцени диалог по критерию «{analysis_prompt.title}».\n"
+        f"Сделай разбор диалога по критерию «{analysis_prompt.title}».\n"
         f"Инструкция критерия:\n{analysis_prompt.prompt_text}\n"
-        f"Диапазон rating: {analysis_prompt.min_rating}..{analysis_prompt.max_rating}.\n"
-        'Верни только JSON вида {"rating": <int>, "text": "<string>"}.'
+        "Верни только текст аналитики без JSON-обёртки."
     )
     messages = [
         {"role": "system", "content": analysis_instruction},
@@ -282,16 +281,10 @@ def generate_analysis_reply(dialog: DialogSession, analysis_prompt: AnalysisProm
         },
     ]
     try:
-        content, _ = _chat_completion(messages=messages, temperature=0.1, max_tokens=450)
+        content, _ = _chat_completion(messages=messages, temperature=0.1, max_tokens=analysis_prompt.max_tokens)
         return content
     except LLMIntegrationError:
-        return json.dumps(
-            {
-                "rating": analysis_prompt.min_rating,
-                "text": "Анализ недоступен из-за ошибки LLM. Повторите позже.",
-            },
-            ensure_ascii=False,
-        )
+        return "Анализ недоступен из-за ошибки LLM. Повторите позже."
 
 
 def generate_encyclopedia_summary(title: str, body: str) -> str:

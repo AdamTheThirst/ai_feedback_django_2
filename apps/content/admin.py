@@ -97,7 +97,7 @@ class ScenarioPromptAdmin(admin.ModelAdmin):
 class AnalysisPromptAdmin(admin.ModelAdmin):
     """Настраивает отображение аналитических промтов в административном интерфейсе."""
 
-    list_display = ("title", "game", "alias", "sort_order", "is_active", "is_archived")
+    list_display = ("title", "game", "alias", "sort_order", "max_tokens", "is_active", "is_archived")
     list_filter = ("game", "is_active", "is_archived")
     search_fields = ("title", "alias", "game__title")
 

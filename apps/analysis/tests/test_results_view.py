@@ -100,9 +100,9 @@ class DialogResultsViewTests(TestCase):
             rating=4,
             rating_min=0,
             rating_max=5,
-            analysis_text="Текст анализа",
-            raw_llm_response_text='{"rating":4,"text":"Текст анализа"}',
-            parsed_json_snapshot={"rating": 4, "text": "Текст анализа"},
+            analysis_text="<b>Текст анализа</b><script>alert(1)</script>",
+            raw_llm_response_text="<b>Текст анализа</b><script>alert(1)</script>",
+            parsed_json_snapshot=None,
             validation_status=AnalysisValidationStatus.VALID,
             validation_error_message="",
             llm_attempt_count=1,
@@ -133,6 +133,8 @@ class DialogResultsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Критерий 1")
         self.assertContains(response, "Текст анализа")
+        self.assertContains(response, "<b>Текст анализа</b>", html=True)
+        self.assertContains(response, "&lt;script&gt;alert(1)&lt;/script&gt;", html=False)
         self.assertNotContains(response, "Сырой ответ LLM")
         self.assertNotContains(response, "Статус валидации")
         self.assertNotContains(response, "из 5")

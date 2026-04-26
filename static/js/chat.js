@@ -93,6 +93,79 @@ function setAnalysisOverlayVisible(isVisible) {
 }
 
 /**
+ * Обновляет подпись прогресса аналитики в формате `m из n`.
+ *
+ * Контекст использования:
+ * - вызывается во время polling endpoint-а прогресса анализа;
+ * - отображает пользователю, сколько промтов уже обработано.
+ *
+ * Параметры:
+ * - `completedCount`: количество уже обработанных промтов;
+ * - `totalCount`: общее количество промтов.
+ *
+ * Возвращает:
+ * - отсутствует.
+ *
+ * Исключения и особые случаи:
+ * - если элемент подписи не найден, функция ничего не делает.
+ *
+ * Побочные эффекты:
+ * - меняет текст узла `#analysis-progress-text`.
+ */
+function setAnalysisProgressText(completedCount, totalCount) {
+    const node = document.getElementById("analysis-progress-text");
+    if (!node) {
+        return;
+    }
+    const completed = Math.max(parseInt(completedCount || 0, 10), 0);
+    const total = Math.max(parseInt(totalCount || 0, 10), 0);
+    node.textContent = `${completed} из ${total}`;
+}
+
+/**
+ * Запускает polling серверного прогресса анализа.
+ *
+ * Контекст использования:
+ * - включается при ручном завершении диалога;
+ * - позволяет обновлять подпись `m из n` до редиректа на страницу результатов.
+ *
+ * Параметры:
+ * - отсутствуют.
+ *
+ * Возвращает:
+ * - идентификатор интервала `setInterval` или `null`, если polling недоступен.
+ *
+ * Исключения и особые случаи:
+ * - при сетевых ошибках тихо пропускает тик, не прерывая поток.
+ *
+ * Побочные эффекты:
+ * - выполняет периодические GET-запросы к `progressUrl`.
+ */
+function startAnalysisProgressPolling() {
+    if (!window.chatConfig || !window.chatConfig.progressUrl) {
+        return null;
+    }
+    const intervalId = setInterval(async function () {
+        try {
+            const response = await fetch(window.chatConfig.progressUrl, {
+                method: "GET",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            });
+            const parsed = await safeReadJson(response);
+            if (!parsed.ok || !parsed.payload || !parsed.payload.ok) {
+                return;
+            }
+            setAnalysisProgressText(parsed.payload.completed_count, parsed.payload.total_count);
+        } catch (error) {
+            return;
+        }
+    }, 700);
+    return intervalId;
+}
+
+/**
  * Прокручивает ленту сообщений к последней реплике.
  *
  * Контекст использования:
@@ -442,7 +515,12 @@ function initManualFinishButton() {
     finishButton.addEventListener("click", async function () {
         finishButton.disabled = true;
         setAnalysisOverlayVisible(true);
+        setAnalysisProgressText(0, 0);
+        const progressIntervalId = startAnalysisProgressPolling();
         const finished = await finishDialog("manual_feedback");
+        if (progressIntervalId) {
+            clearInterval(progressIntervalId);
+        }
         if (!finished) {
             finishButton.disabled = false;
             setAnalysisOverlayVisible(false);

@@ -8,9 +8,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import User
+from apps.analysis.models import AnalysisRun
 from apps.auditlog.models import AuditLogEntry
-from apps.content.models import Game, Scenario, ScenarioPrompt
-from apps.core.enums import DialogEndedReason, DialogMessageRole, DialogStatus
+from apps.content.models import AnalysisPrompt, Game, Scenario, ScenarioPrompt
+from apps.core.enums import AnalysisRunStatus, DialogEndedReason, DialogMessageRole, DialogStatus
 from apps.dialogs.models import DialogMessage, DialogSession
 
 
@@ -239,3 +240,45 @@ class DialogFinishApiTests(TestCase):
                 dialog=self.dialog,
             ).exists()
         )
+
+    def test_analysis_progress_endpoint_returns_counts(self) -> None:
+        """Проверяет JSON прогресса аналитики в формате `m из n`.
+
+        Контекст использования:
+        - покрывает endpoint polling во время ожидания пользовательского overlay.
+
+        Параметры:
+        - отсутствуют.
+
+        Возвращает:
+        - ничего не возвращает.
+
+        Исключения и особые случаи:
+        - отсутствуют.
+
+        Побочные эффекты:
+        - отсутствуют.
+        """
+
+        AnalysisPrompt.objects.create(
+            game=self.game,
+            alias="progress-a1",
+            title="Критерий",
+            header_text="h",
+            comment_text="",
+            prompt_text="p",
+            sort_order=1,
+            min_rating=0,
+            max_rating=5,
+            max_tokens=1000,
+            is_active=True,
+        )
+        AnalysisRun.objects.create(dialog=self.dialog, status=AnalysisRunStatus.RUNNING, llm_attempt_count=2)
+
+        response = self.client.get(reverse("dialogs:analysis_progress", kwargs={"public_id": self.dialog.public_id}))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["completed_count"], 2)
+        self.assertEqual(payload["total_count"], 1)
