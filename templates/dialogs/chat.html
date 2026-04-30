@@ -1,0 +1,72 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+
+{% block title %}{{ object.game.title }} | {{ object.scenario.title }}{% endblock %}
+
+{% block content %}
+<div class="chat-shell">
+    <section class="chat-card">
+        <header class="chat-header">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                <div class="small text-muted">{{ object.game.title }} | {{ object.scenario.title }}</div>
+                <div class="chat-timer" id="chat-timer">10:00</div>
+            </div>
+            <button class="btn btn-outline-warning w-100 mb-2" id="dialog-finish-button" type="button" {% if not can_finish %}disabled{% endif %}>Дай обратную связь</button>
+        </header>
+
+        <div class="messages-scroll-area" id="messages-scroll-area">
+            <div id="message-list">
+                <div class="message-row message-assistant">
+                    <div class="message-bubble conditions-bubble">
+                        <strong>Условия сценария:</strong><br>
+                        {{ object.conditions_snapshot_text }}
+                    </div>
+                </div>
+                {% for message in messages %}
+                    <div class="message-row {% if message.role == message_role_user %}message-user{% else %}message-assistant{% endif %}">
+                        <div class="message-bubble">{{ message.text }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div id="typing-indicator" class="typing-indicator d-none">думаю...</div>
+            <div id="chat-status-line" class="small text-muted mt-2"></div>
+        </div>
+
+        <footer class="chat-composer">
+            <form id="chat-send-form" method="post" action="{% url 'dialogs:send_message' public_id=object.public_id %}">
+                {% csrf_token %}
+                <div class="input-group">
+                    <textarea id="chat-input" name="text" class="form-control" rows="2" placeholder="Введите сообщение" {% if not can_send %}disabled{% endif %}></textarea>
+                    <button id="chat-send-button" class="btn btn-primary" type="submit" {% if not can_send %}disabled{% endif %}>Отправить</button>
+                </div>
+            </form>
+        </footer>
+    </section>
+</div>
+
+<div id="analysis-overlay" class="analysis-overlay d-none" aria-live="polite" aria-hidden="true">
+    <div class="analysis-overlay-card">
+        <div class="analysis-spinner" aria-hidden="true"></div>
+        <div class="analysis-overlay-text">
+            Идёт анализ диалога. Это может занять некоторое время, пожалуйста, подождите.
+        </div>
+        <div id="analysis-progress-text" class="small text-muted mt-2">0 из 0</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.chatConfig = {
+        sendUrl: "{% url 'dialogs:send_message' public_id=object.public_id %}",
+        finishUrl: "{% url 'dialogs:finish' public_id=object.public_id %}",
+        progressUrl: "{% url 'dialogs:analysis_progress' public_id=object.public_id %}",
+        pageLeaveUrl: "{% url 'dialogs:page_leave' public_id=object.public_id %}",
+        resultsUrl: "{% url 'dialogs:results' public_id=object.public_id %}",
+        csrfToken: "{{ csrf_token }}",
+        secondsRemaining: {{ seconds_remaining }},
+        dialogStatus: "{{ dialog_status }}"
+    };
+</script>
+<script src="{% static 'js/chat.js' %}"></script>
+{% endblock %}

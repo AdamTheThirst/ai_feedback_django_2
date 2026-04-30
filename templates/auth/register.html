@@ -1,0 +1,18 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Регистрация{% endblock %}
+
+{% block content %}
+<section class="card border-0 shadow-sm auth-card">
+    <div class="card-body auth-card-body">
+        <h1 class="h4 mb-3">Регистрация</h1>
+        <p class="small text-muted">Email используется для входа, связи и восстановления пароля. Изменение email после регистрации не предусмотрено.</p>
+        <form method="post" novalidate>
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="btn btn-primary w-100">Создать аккаунт</button>
+        </form>
+        <a class="btn btn-secondary w-100 mt-3" href="{% url 'accounts:login' %}">Уже есть аккаунт? Войти</a>
+    </div>
+</section>
+{% endblock %}

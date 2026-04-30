@@ -1,0 +1,48 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Главная — Веб-тренажёр обратной связи{% endblock %}
+
+{% block content %}
+<section class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <h1 class="h4 mb-2">Тренажёр обратной связи</h1>
+        <p class="mb-0 text-muted">Выберите игру и сценарий.</p>
+    </div>
+</section>
+
+{% if has_active_dialog %}
+    <div class="alert alert-warning" role="alert">
+        У вас уже есть активный диалог. Завершите его перед запуском нового сценария.
+    </div>
+{% endif %}
+
+{% if games %}
+    {% for item in games %}
+        <section class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h5 mb-3">{{ item.game.title }}</h2>
+                <div class="d-grid gap-2">
+                    {% for scenario in item.scenarios %}
+                        <form method="post" action="{% url 'scenario_start' game_slug=item.game.slug scenario_slug=scenario.slug %}">
+                            {% csrf_token %}
+                            <button class="btn btn-outline-primary w-100 text-start" type="submit">{{ scenario.title }}</button>
+                        </form>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    {% endfor %}
+{% else %}
+    <div class="alert alert-info" role="alert">
+        Опубликованные игры пока отсутствуют.
+    </div>
+{% endif %}
+
+<section class="card border-0 shadow-sm mt-4">
+    <div class="card-body d-grid gap-2">
+        <a class="btn btn-light border" href="{% url 'encyclopedia_entry' %}">Энциклопедия</a>
+        <a class="btn btn-light border" href="{% url 'cabinet_entry' %}">Личный кабинет</a>
+        <a class="btn btn-outline-danger" href="{% url 'accounts:logout' %}">Выйти</a>
+    </div>
+</section>
+{% endblock %}

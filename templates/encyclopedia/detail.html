@@ -1,0 +1,24 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ article.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-3 d-flex flex-column" style="min-height: calc(100vh - 120px);">
+    <div class="flex-grow-1 overflow-auto pb-3">
+        <h1 class="h4">{{ article.title }}</h1>
+        {% if article.summary %}
+            <p class="text-muted">{{ article.summary }}</p>
+        {% else %}
+            <p class="text-muted">Краткое описание отсутствует.</p>
+        {% endif %}
+        <div class="article-body" style="white-space: pre-line;">{{ article.body }}</div>
+    </div>
+
+    <div class="position-sticky bottom-0 bg-white py-2 border-top" style="z-index: 1000;">
+        <div class="d-grid gap-2">
+            <a class="btn btn-outline-primary" href="{% url 'encyclopedia_entry' %}">Назад в энциклопедию</a>
+            <a class="btn btn-outline-secondary" href="{% url 'home' %}">Назад к упражнениям</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

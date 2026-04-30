@@ -1,0 +1,43 @@
+{% extends "layouts/base.html" %}
+{% load analysis_html %}
+
+{% block title %}Результаты | {{ dialog.game.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="mb-3">
+        <a class="btn btn-primary w-100" href="{% url 'home' %}">Обратно к упражнениям</a>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h1 class="h5 mb-2">Результаты сценария</h1>
+            <div class="text-muted small mb-1">{{ dialog.game.title }} | {{ dialog.scenario.title }}</div>
+        </div>
+    </div>
+
+    {% if empty_state_message %}
+        <div class="alert alert-secondary">{{ empty_state_message }}</div>
+    {% endif %}
+
+    <div class="d-grid gap-3">
+        {% for card in cards %}
+            <article class="card">
+                <div class="card-body">
+                    <h2 class="h6 mb-1">{{ card.title_snapshot }}</h2>
+                    <div class="small text-muted mb-2">{{ card.header_snapshot_text }}</div>
+                    <div class="mb-0">{{ card.analysis_text|render_analysis_html }}</div>
+                </div>
+            </article>
+        {% empty %}
+            {% if not empty_state_message %}
+                <div class="alert alert-secondary">Для этого диалога нет карточек анализа.</div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="mt-3">
+        <a class="btn btn-primary w-100" href="{% url 'home' %}">Обратно к упражнениям</a>
+    </div>
+</div>
+{% endblock %}

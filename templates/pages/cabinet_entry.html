@@ -1,0 +1,96 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Личный кабинет{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <h1 class="h4 mb-3">Личный кабинет</h1>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">Профиль</h2>
+            <p class="mb-1"><strong>Email:</strong> {{ request.user.email }}</p>
+            <p class="small text-muted">Email доступен только для просмотра.</p>
+            <form method="post" class="mb-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_nickname">
+                {{ nickname_form.as_p }}
+                <button class="btn btn-primary btn-sm" type="submit">Сохранить nickname</button>
+            </form>
+            <a href="{% url 'accounts:password_reset' %}">Сменить пароль через email</a>
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">Мои настройки игры</h2>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_timer">
+                {{ timer_form.as_p }}
+                <div class="small text-muted mb-2">Диапазон: 5–20 минут. Настройка применяется к новым сессиям.</div>
+                <button class="btn btn-primary btn-sm" type="submit">Сохранить таймер</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">Моя статистика сессий</h2>
+            <div class="row g-2">
+                <div class="col-6"><div class="border rounded p-2">Всего сессий: <strong>{{ total_sessions }}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">Завершённых: <strong>{{ completed_sessions }}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">Незавершённых: <strong>{{ unfinished_sessions }}</strong></div></div>
+                <div class="col-6"><div class="border rounded p-2">С аналитикой: <strong>{{ completed_with_analysis }}</strong></div></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">История игр</h2>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr><th>Дата</th><th>Игра</th><th>Сценарий</th><th>Статус</th><th>Аналитика</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for session in history_page.object_list %}
+                            <tr>
+                                <td>{% if session.ended_at %}{{ session.ended_at|date:"d.m.Y H:i" }}{% else %}—{% endif %}</td>
+                                <td>{{ session.game.title }}</td>
+                                <td>{{ session.scenario.title }}</td>
+                                <td>{{ session.get_status_display }}</td>
+                                <td>
+                                    {% if session.has_analysis_result %}
+                                        <a class="btn btn-sm btn-outline-primary" href="{% url 'dialogs:results' public_id=session.public_id %}">Прочесть аналитику</a>
+                                    {% else %}
+                                        <span class="text-muted">Недоступна</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5" class="text-muted">История пока пустая.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if history_page.paginator.num_pages > 1 %}
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if history_page.has_previous %}
+                            <li class="page-item"><a class="page-link" href="?page={{ history_page.previous_page_number }}">Назад</a></li>
+                        {% endif %}
+                        <li class="page-item disabled"><span class="page-link">Стр. {{ history_page.number }} / {{ history_page.paginator.num_pages }}</span></li>
+                        {% if history_page.has_next %}
+                            <li class="page-item"><a class="page-link" href="?page={{ history_page.next_page_number }}">Вперёд</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    </section>
+
+    <a class="btn btn-outline-secondary w-100" href="{% url 'home' %}">Вернуться к упражнениям</a>
+</div>
+{% endblock %}
